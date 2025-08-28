@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Google Play Games Services App ID -->
+    <!-- This value will be provided by Stream A after Google Play Console configuration -->
+    <!-- Format: @string/app_id should reference the actual numeric ID -->
+    <string name="app_id">PLACEHOLDER_APP_ID</string>
+</resources>
