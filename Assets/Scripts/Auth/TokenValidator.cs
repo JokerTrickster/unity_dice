@@ -530,49 +530,24 @@ public class TokenValidator
         {
             var request = new TokenValidationRequest { Token = token };
             
-            // NetworkManager의 새로운 API 형식에 맞게 수정
-            bool validationComplete = false;
-            bool validationResult = false;
+            // NetworkManager 확장 메서드를 사용해 비동기 요청
+            var response = await NetworkManager.Instance.PostAsync<TokenValidationResponse>(
+                "/api/auth/validate", 
+                request,
+                10f // 10초 타임아웃
+            );
 
-            NetworkManager.Instance.Post("/api/auth/validate", request, response =>
+            if (response.IsSuccess && response.data != null)
             {
-                if (response.IsSuccess)
-                {
-                    var validationResponse = response.GetData<TokenValidationResponse>();
-                    if (validationResponse != null)
-                    {
-                        validationResult = validationResponse.IsValid;
-                        Debug.Log("[TokenValidator] Server validation successful");
-                    }
-                    else
-                    {
-                        Debug.LogWarning("[TokenValidator] Invalid server validation response format");
-                    }
-                }
-                else
-                {
-                    Debug.LogWarning($"[TokenValidator] Server validation failed: {response.Error}");
-                }
-                
-                validationComplete = true;
-            });
-
-            // 서버 응답 대기 (최대 10초)
-            float elapsed = 0f;
-            while (!validationComplete && elapsed < 10f)
-            {
-                await Task.Delay(100);
-                elapsed += 0.1f;
+                Debug.Log("[TokenValidator] Server validation successful");
+                return response.data.IsValid;
             }
-
-            if (!validationComplete)
+            else
             {
-                Debug.LogWarning("[TokenValidator] Server validation timeout");
+                Debug.LogWarning($"[TokenValidator] Server validation failed: {response.errorMessage}");
                 // 네트워크 오류 시에는 로컬 검증만으로 진행
                 return true;
             }
-
-            return validationResult;
         }
         catch (Exception ex)
         {

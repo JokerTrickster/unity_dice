@@ -508,63 +508,31 @@ public class TokenManager : MonoBehaviour
             bool requestComplete = false;
             TokenRefreshResult result = null;
 
-            // NetworkManager를 통해 토큰 갱신 요청
-            NetworkManager.Instance.Post("/api/auth/refresh", request, response =>
-            {
-                if (response.IsSuccess)
-                {
-                    var refreshResponse = response.GetData<TokenRefreshResponse>();
-                    if (refreshResponse != null && !string.IsNullOrEmpty(refreshResponse.AccessToken))
-                    {
-                        result = new TokenRefreshResult
-                        {
-                            Success = true,
-                            AccessToken = refreshResponse.AccessToken,
-                            RefreshToken = refreshResponse.RefreshToken,
-                            ExpiresIn = refreshResponse.ExpiresIn
-                        };
-                        
-                        Debug.Log("[TokenManager] Token refresh server request successful");
-                    }
-                    else
-                    {
-                        result = new TokenRefreshResult
-                        {
-                            Success = false,
-                            ErrorMessage = "Invalid server response format"
-                        };
-                    }
-                }
-                else
-                {
-                    result = new TokenRefreshResult
-                    {
-                        Success = false,
-                        ErrorMessage = response.Error
-                    };
-                }
-                
-                requestComplete = true;
-            });
+            // NetworkManager 확장 메서드를 사용해 비동기 요청
+            var response = await NetworkManager.Instance.PostAsync<TokenRefreshResponse>(
+                "/api/auth/refresh", 
+                request,
+                30f // 30초 타임아웃
+            );
 
-            // 서버 응답 대기 (최대 30초)
-            float elapsed = 0f;
-            while (!requestComplete && elapsed < 30f)
+            if (response.IsSuccess && response.data != null && !string.IsNullOrEmpty(response.data.AccessToken))
             {
-                await Task.Delay(100);
-                elapsed += 0.1f;
+                return new TokenRefreshResult
+                {
+                    Success = true,
+                    AccessToken = response.data.AccessToken,
+                    RefreshToken = response.data.RefreshToken,
+                    ExpiresIn = response.data.ExpiresIn
+                };
             }
-
-            if (!requestComplete)
+            else
             {
                 return new TokenRefreshResult
                 {
                     Success = false,
-                    ErrorMessage = "Token refresh request timeout"
+                    ErrorMessage = response.errorMessage ?? "Invalid server response"
                 };
             }
-
-            return result;
         }
         catch (Exception ex)
         {
