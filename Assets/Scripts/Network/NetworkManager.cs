@@ -194,6 +194,36 @@ public class NetworkManager : MonoBehaviour
     }
 
     /// <summary>
+    /// POST 요청 (async/await 지원)
+    /// </summary>
+    public System.Threading.Tasks.Task<NetworkResponse<T>> PostAsync<T>(string endpoint, object data, float timeout = 0f) where T : class
+    {
+        var tcs = new System.Threading.Tasks.TaskCompletionSource<NetworkResponse<T>>();
+        
+        var request = new NetworkRequest
+        {
+            Method = HttpMethod.POST,
+            Endpoint = endpoint,
+            Data = data,
+            Callback = (response) =>
+            {
+                var typedResponse = new NetworkResponse<T>
+                {
+                    IsSuccess = response.IsSuccess,
+                    StatusCode = response.StatusCode,
+                    Error = response.Error,
+                    data = response.IsSuccess ? JsonUtility.FromJson<T>(response.RawData) : null
+                };
+                tcs.SetResult(typedResponse);
+            },
+            Timeout = timeout > 0 ? timeout : defaultTimeout
+        };
+        
+        ExecuteRequest(request);
+        return tcs.Task;
+    }
+
+    /// <summary>
     /// PUT 요청
     /// </summary>
     public void Put(string endpoint, object data, Action<NetworkResponse> callback, float timeout = 0f)
@@ -632,6 +662,18 @@ public class NetworkResponse
             return null;
         }
     }
+}
+
+/// <summary>
+/// 제네릭 네트워크 응답 데이터 클래스
+/// </summary>
+public class NetworkResponse<T> where T : class
+{
+    public bool IsSuccess { get; set; }
+    public long StatusCode { get; set; }
+    public string Error { get; set; } = "";
+    public Dictionary<string, string> Headers { get; set; } = new();
+    public T data { get; set; }
 }
 
 /// <summary>
