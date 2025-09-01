@@ -288,6 +288,32 @@ public class UserDataManager : MonoBehaviour
     }
 
     /// <summary>
+    /// 현재 사용자 데이터 업데이트 (편의 메서드)
+    /// </summary>
+    public void UpdateCurrentUser(UserData userData)
+    {
+        if (userData == null)
+        {
+            Debug.LogError("[UserDataManager] Cannot update with null user data");
+            return;
+        }
+        
+        if (_currentUserData == null)
+        {
+            Debug.LogWarning("[UserDataManager] No current user to update");
+            return;
+        }
+        
+        if (_currentUserData.UserId != userData.UserId)
+        {
+            Debug.LogWarning($"[UserDataManager] User ID mismatch: current={_currentUserData.UserId}, provided={userData.UserId}");
+            return;
+        }
+        
+        UpdateUserData(userData);
+    }
+
+    /// <summary>
     /// 현재 사용자 로그아웃
     /// </summary>
     public void LogoutCurrentUser()
@@ -710,6 +736,18 @@ public class UserData
     public int GamesWon = 0;
     public int GamesLost = 0;
     
+    // 프로필 관련 데이터
+    public string Title = ""; // 사용자 타이틀/칭호
+    public string AvatarUrl = ""; // 프로필 이미지 URL
+    public int Ranking = -1; // 현재 랭킹 (-1 = 랭킹 없음)
+    
+    // 에너지/스태미나 시스템
+    public int CurrentEnergy = 100;
+    public int MaxEnergy = 100;
+    public DateTime LastEnergyRechargeTime = DateTime.Now;
+    public int EnergyRechargeRate = 1; // 충전 주기마다 회복되는 에너지량
+    public TimeSpan EnergyRechargeInterval = TimeSpan.FromMinutes(10); // 에너지 충전 간격
+    
     // 설정
     public bool SoundEnabled = true;
     public bool MusicEnabled = true;
@@ -719,4 +757,19 @@ public class UserData
     // 통계 계산 프로퍼티
     public float WinRate => TotalGamesPlayed > 0 ? (float)GamesWon / TotalGamesPlayed * 100f : 0f;
     public int TotalExperience => (Level - 1) * 1000 + Experience; // 레벨당 1000 경험치
+    
+    // 에너지 관련 계산 프로퍼티
+    public float EnergyPercentage => MaxEnergy > 0 ? (float)CurrentEnergy / MaxEnergy : 0f;
+    public bool IsEnergyLow => EnergyPercentage <= 0.2f; // 20% 이하면 부족
+    public bool IsEnergyFull => CurrentEnergy >= MaxEnergy;
+    public bool CanUseEnergy => CurrentEnergy > 0;
+    public TimeSpan TimeUntilNextRecharge
+    {
+        get
+        {
+            var timeSinceLastRecharge = DateTime.Now - LastEnergyRechargeTime;
+            var timeToNext = EnergyRechargeInterval - timeSinceLastRecharge;
+            return timeToNext.TotalSeconds > 0 ? timeToNext : TimeSpan.Zero;
+        }
+    }
 }
