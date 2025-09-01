@@ -5,11 +5,12 @@ using System.Collections;
 using System.Collections.Generic;
 
 /// <summary>
-/// 설정 섹션 UI 컴포넌트
-/// 게임 설정과 사용자 계정 관리를 제공하는 UI 섹션입니다.
+/// 설정 섹션 순수 UI 컴포넌트
+/// SettingsSection 비즈니스 로직과 분리된 UI 전용 컴포넌트입니다.
+/// 사용자 입력을 이벤트로 전달하고 UI 업데이트만 담당합니다.
 /// 하단 Footer 영역에 배치되어 빠른 접근을 제공합니다.
 /// </summary>
-public class SettingsSectionUI : SectionBase
+public class SettingsSectionUI : MonoBehaviour
 {
     #region UI References
     [Header("Quick Actions")]
@@ -40,81 +41,137 @@ public class SettingsSectionUI : SectionBase
     [SerializeField] private Image backgroundImage;
     [SerializeField] private GameObject newNotificationIndicator;
     [SerializeField] private Text versionText;
+    
+    [Header("UI Animation")]
+    [SerializeField] private float animationDuration = 0.3f;
+    [SerializeField] private AnimationCurve animationCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
     #endregion
 
-    #region Section Properties
-    public override MainPageSectionType SectionType => MainPageSectionType.Settings;
-    public override string SectionDisplayName => "설정";
+    #region Events
+    /// <summary>
+    /// 설정 버튼 클릭 이벤트
+    /// </summary>
+    public static event Action OnSettingsButtonClicked;
+    
+    /// <summary>
+    /// 로그아웃 버튼 클릭 이벤트
+    /// </summary>
+    public static event Action OnLogoutButtonClicked;
+    
+    /// <summary>
+    /// 도움말 버튼 클릭 이벤트
+    /// </summary>
+    public static event Action OnHelpButtonClicked;
+    
+    /// <summary>
+    /// 알림 버튼 클릭 이벤트
+    /// </summary>
+    public static event Action OnNotificationButtonClicked;
+    
+    /// <summary>
+    /// 오디오 설정 변경 이벤트
+    /// </summary>
+    public static event Action<string, float> OnAudioSettingChanged;
+    
+    /// <summary>
+    /// 토글 설정 변경 이벤트
+    /// </summary>
+    public static event Action<string, bool> OnToggleSettingChanged;
+    
+    /// <summary>
+    /// 품질 설정 변경 이벤트
+    /// </summary>
+    public static event Action<int> OnQualitySettingChanged;
+    
+    /// <summary>
+    /// 알림 닫기 이벤트
+    /// </summary>
+    public static event Action OnNotificationClosed;
     #endregion
 
     #region Private Fields
-    private bool _settingsChanged = false;
-    private Dictionary<string, object> _pendingSettings = new Dictionary<string, object>();
-    private Coroutine _settingsSaveCoroutine;
-    
-    // Audio settings cache
-    private float _masterVolume = 1.0f;
-    private float _musicVolume = 0.8f;
-    private float _sfxVolume = 0.9f;
-    private bool _isMuted = false;
-    
-    // Display settings cache
-    private bool _isFullscreen = false;
-    private int _qualityLevel = 2;
-    private bool _vibrationEnabled = true;
-    private float _brightness = 0.8f;
-    
-    // Notification system
     private Queue<NotificationMessage> _notificationQueue = new Queue<NotificationMessage>();
     private bool _isShowingNotification = false;
+    private bool _isInitialized = false;
+    private Coroutine _currentAnimationCoroutine;
+    
+    // UI 상태 캐시
+    private Dictionary<string, object> _uiStateCache = new Dictionary<string, object>();
+    #endregion
+    
+    #region Public Properties
+    /// <summary>
+    /// UI 초기화 완료 상태
+    /// </summary>
+    public bool IsInitialized => _isInitialized;
+    
+    /// <summary>
+    /// 알림 표시 중 여부
+    /// </summary>
+    public bool IsShowingNotification => _isShowingNotification;
+    
+    /// <summary>
+    /// 대기 중인 알림 수
+    /// </summary>
+    public int PendingNotificationCount => _notificationQueue.Count;
     #endregion
 
-    #region Section Implementation
-    protected override void OnInitialize()
+    #region Unity Lifecycle
+    private void Awake()
     {
-        SetupUIEvents();
-        LoadCurrentSettings();
+        ValidateComponents();
+    }
+
+    private void Start()
+    {
         InitializeUI();
-        SetupVersionInfo();
-        ValidateSettingsComponents();
     }
 
-    protected override void OnActivate()
-    {
-        RefreshSettingsDisplay();
-        CheckForNewNotifications();
-    }
-
-    protected override void OnDeactivate()
-    {
-        SavePendingSettings();
-    }
-
-    protected override void OnCleanup()
+    private void OnDestroy()
     {
         UnsubscribeFromUIEvents();
-        SavePendingSettings();
         StopAllCoroutines();
+        
+        // 이벤트 정리
+        OnSettingsButtonClicked = null;
+        OnLogoutButtonClicked = null;
+        OnHelpButtonClicked = null;
+        OnNotificationButtonClicked = null;
+        OnAudioSettingChanged = null;
+        OnToggleSettingChanged = null;
+        OnQualitySettingChanged = null;
+        OnNotificationClosed = null;
     }
+    #endregion
 
-    protected override void UpdateUI(UserData userData)
+    #region Initialization
+    private void InitializeUI()
     {
-        if (userData == null) return;
-        
-        // 사용자별 설정 업데이트
-        LoadUserSpecificSettings(userData);
-        
-        Debug.Log($"[SettingsSectionUI] UI updated for user: {userData.DisplayName}");
+        try
+        {
+            SetupUIEvents();
+            PopulateQualityDropdown();
+            SetupVersionInfo();
+            InitializeUIState();
+            
+            _isInitialized = true;
+            Debug.Log("[SettingsSectionUI] UI component initialized successfully");
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"[SettingsSectionUI] Initialization failed: {e.Message}");
+            _isInitialized = false;
+        }
     }
 
-    protected override void ValidateComponents()
+    private void ValidateComponents()
     {
         // 필수 컴포넌트 검증
         if (settingsButton == null)
-            ReportError("Settings button is missing!");
+            Debug.LogError("[SettingsSectionUI] Settings button is missing!");
             
         if (logoutButton == null)
-            ReportError("Logout button is missing!");
+            Debug.LogError("[SettingsSectionUI] Logout button is missing!");
             
         // 경고 레벨 컴포넌트
         if (masterVolumeSlider == null)
@@ -123,6 +180,21 @@ public class SettingsSectionUI : SectionBase
         if (notificationPanel == null)
             Debug.LogWarning("[SettingsSectionUI] Notification panel is not assigned");
     }
+    
+    private void InitializeUIState()
+    {
+        // 초기 UI 상태 캐시
+        _uiStateCache["masterVolume"] = masterVolumeSlider?.value ?? 1.0f;
+        _uiStateCache["musicVolume"] = musicVolumeSlider?.value ?? 0.8f;
+        _uiStateCache["sfxVolume"] = sfxVolumeSlider?.value ?? 0.9f;
+        _uiStateCache["isMuted"] = muteToggle?.isOn ?? false;
+        _uiStateCache["isFullscreen"] = fullscreenToggle?.isOn ?? false;
+        _uiStateCache["qualityLevel"] = qualityDropdown?.value ?? 2;
+        _uiStateCache["vibrationEnabled"] = vibrationToggle?.isOn ?? true;
+        _uiStateCache["brightness"] = brightnessSlider?.value ?? 0.8f;
+        
+        Debug.Log("[SettingsSectionUI] UI state cache initialized");
+    }
     #endregion
 
     #region UI Event Setup
@@ -130,147 +202,411 @@ public class SettingsSectionUI : SectionBase
     {
         // Quick action buttons
         if (settingsButton != null)
-            settingsButton.onClick.AddListener(OnSettingsClicked);
+            settingsButton.onClick.AddListener(() => OnSettingsButtonClicked?.Invoke());
             
         if (logoutButton != null)
-            logoutButton.onClick.AddListener(OnLogoutClicked);
+            logoutButton.onClick.AddListener(() => OnLogoutButtonClicked?.Invoke());
             
         if (helpButton != null)
-            helpButton.onClick.AddListener(OnHelpClicked);
+            helpButton.onClick.AddListener(() => OnHelpButtonClicked?.Invoke());
             
         if (notificationButton != null)
-            notificationButton.onClick.AddListener(OnNotificationClicked);
+            notificationButton.onClick.AddListener(() => OnNotificationButtonClicked?.Invoke());
             
         // Audio controls
         if (masterVolumeSlider != null)
-            masterVolumeSlider.onValueChanged.AddListener(OnMasterVolumeChanged);
+            masterVolumeSlider.onValueChanged.AddListener(value => HandleAudioSettingChanged("MasterVolume", value));
             
         if (musicVolumeSlider != null)
-            musicVolumeSlider.onValueChanged.AddListener(OnMusicVolumeChanged);
+            musicVolumeSlider.onValueChanged.AddListener(value => HandleAudioSettingChanged("MusicVolume", value));
             
         if (sfxVolumeSlider != null)
-            sfxVolumeSlider.onValueChanged.AddListener(OnSfxVolumeChanged);
+            sfxVolumeSlider.onValueChanged.AddListener(value => HandleAudioSettingChanged("SfxVolume", value));
             
         if (muteToggle != null)
-            muteToggle.onValueChanged.AddListener(OnMuteToggleChanged);
+            muteToggle.onValueChanged.AddListener(value => HandleToggleSettingChanged("IsMuted", value));
             
         // Display settings
         if (fullscreenToggle != null)
-            fullscreenToggle.onValueChanged.AddListener(OnFullscreenToggleChanged);
+            fullscreenToggle.onValueChanged.AddListener(value => HandleToggleSettingChanged("IsFullscreen", value));
             
         if (qualityDropdown != null)
-            qualityDropdown.onValueChanged.AddListener(OnQualityChanged);
+            qualityDropdown.onValueChanged.AddListener(value => OnQualitySettingChanged?.Invoke(value));
             
         if (vibrationToggle != null)
-            vibrationToggle.onValueChanged.AddListener(OnVibrationToggleChanged);
+            vibrationToggle.onValueChanged.AddListener(value => HandleToggleSettingChanged("VibrationEnabled", value));
             
         if (brightnessSlider != null)
-            brightnessSlider.onValueChanged.AddListener(OnBrightnessChanged);
+            brightnessSlider.onValueChanged.AddListener(value => HandleAudioSettingChanged("Brightness", value));
             
         // Notification panel
         if (closeNotificationButton != null)
-            closeNotificationButton.onClick.AddListener(OnCloseNotificationClicked);
+            closeNotificationButton.onClick.AddListener(() => OnNotificationClosed?.Invoke());
+            
+        Debug.Log("[SettingsSectionUI] UI events setup complete");
     }
 
     private void UnsubscribeFromUIEvents()
     {
         if (settingsButton != null)
-            settingsButton.onClick.RemoveListener(OnSettingsClicked);
+            settingsButton.onClick.RemoveAllListeners();
             
         if (logoutButton != null)
-            logoutButton.onClick.RemoveListener(OnLogoutClicked);
+            logoutButton.onClick.RemoveAllListeners();
             
         if (helpButton != null)
-            helpButton.onClick.RemoveListener(OnHelpClicked);
+            helpButton.onClick.RemoveAllListeners();
             
         if (notificationButton != null)
-            notificationButton.onClick.RemoveListener(OnNotificationClicked);
+            notificationButton.onClick.RemoveAllListeners();
             
         if (masterVolumeSlider != null)
-            masterVolumeSlider.onValueChanged.RemoveListener(OnMasterVolumeChanged);
+            masterVolumeSlider.onValueChanged.RemoveAllListeners();
             
         if (musicVolumeSlider != null)
-            musicVolumeSlider.onValueChanged.RemoveListener(OnMusicVolumeChanged);
+            musicVolumeSlider.onValueChanged.RemoveAllListeners();
             
         if (sfxVolumeSlider != null)
-            sfxVolumeSlider.onValueChanged.RemoveListener(OnSfxVolumeChanged);
+            sfxVolumeSlider.onValueChanged.RemoveAllListeners();
             
         if (muteToggle != null)
-            muteToggle.onValueChanged.RemoveListener(OnMuteToggleChanged);
+            muteToggle.onValueChanged.RemoveAllListeners();
             
         if (fullscreenToggle != null)
-            fullscreenToggle.onValueChanged.RemoveListener(OnFullscreenToggleChanged);
+            fullscreenToggle.onValueChanged.RemoveAllListeners();
             
         if (qualityDropdown != null)
-            qualityDropdown.onValueChanged.RemoveListener(OnQualityChanged);
+            qualityDropdown.onValueChanged.RemoveAllListeners();
             
         if (vibrationToggle != null)
-            vibrationToggle.onValueChanged.RemoveListener(OnVibrationToggleChanged);
+            vibrationToggle.onValueChanged.RemoveAllListeners();
             
         if (brightnessSlider != null)
-            brightnessSlider.onValueChanged.RemoveListener(OnBrightnessChanged);
+            brightnessSlider.onValueChanged.RemoveAllListeners();
             
         if (closeNotificationButton != null)
-            closeNotificationButton.onClick.RemoveListener(OnCloseNotificationClicked);
+            closeNotificationButton.onClick.RemoveAllListeners();
+            
+        Debug.Log("[SettingsSectionUI] UI events unsubscribed");
     }
     #endregion
 
-    #region Settings Management
-    private void LoadCurrentSettings()
+    #region Event Handlers
+    private void HandleAudioSettingChanged(string settingName, float value)
     {
-        // SettingsManager에서 현재 설정 로드
-        if (_settingsManager != null)
+        // UI 상태 캐시 업데이트
+        _uiStateCache[settingName.ToLower()] = value;
+        
+        // 이벤트 발생
+        OnAudioSettingChanged?.Invoke(settingName, value);
+        
+        Debug.Log($"[SettingsSectionUI] Audio setting changed: {settingName} = {value}");
+    }
+
+    private void HandleToggleSettingChanged(string settingName, bool value)
+    {
+        // UI 상태 캐시 업데이트
+        _uiStateCache[settingName.ToLower()] = value;
+        
+        // 음소거 특별 처리
+        if (settingName == "IsMuted")
         {
-            _masterVolume = GetSetting<float>("MasterVolume") ?? 1.0f;
-            _musicVolume = GetSetting<float>("MusicVolume") ?? 0.8f;
-            _sfxVolume = GetSetting<float>("SfxVolume") ?? 0.9f;
-            _isMuted = GetSetting<bool>("IsMuted") ?? false;
-            
-            _isFullscreen = GetSetting<bool>("IsFullscreen") ?? false;
-            _qualityLevel = GetSetting<int>("QualityLevel") ?? 2;
-            _vibrationEnabled = GetSetting<bool>("VibrationEnabled") ?? true;
-            _brightness = GetSetting<float>("Brightness") ?? 0.8f;
+            UpdateAudioSlidersInteractable(!value);
         }
         
-        Debug.Log("[SettingsSectionUI] Settings loaded from SettingsManager");
+        // 이벤트 발생
+        OnToggleSettingChanged?.Invoke(settingName, value);
+        
+        Debug.Log($"[SettingsSectionUI] Toggle setting changed: {settingName} = {value}");
     }
-
-    private void InitializeUI()
+    
+    private void UpdateAudioSlidersInteractable(bool interactable)
     {
-        SafeUIUpdate(() =>
-        {
-            // Audio sliders
-            if (masterVolumeSlider != null)
-                masterVolumeSlider.value = _masterVolume;
-                
-            if (musicVolumeSlider != null)
-                musicVolumeSlider.value = _musicVolume;
-                
-            if (sfxVolumeSlider != null)
-                sfxVolumeSlider.value = _sfxVolume;
-                
-            if (muteToggle != null)
-                muteToggle.isOn = _isMuted;
-                
-            // Display settings
-            if (fullscreenToggle != null)
-                fullscreenToggle.isOn = _isFullscreen;
-                
-            if (qualityDropdown != null)
-            {
-                PopulateQualityDropdown();
-                qualityDropdown.value = _qualityLevel;
-            }
-                
-            if (vibrationToggle != null)
-                vibrationToggle.isOn = _vibrationEnabled;
-                
-            if (brightnessSlider != null)
-                brightnessSlider.value = _brightness;
-                
-        }, "Initialize UI");
+        if (masterVolumeSlider != null)
+            masterVolumeSlider.interactable = interactable;
+        if (musicVolumeSlider != null)
+            musicVolumeSlider.interactable = interactable;
+        if (sfxVolumeSlider != null)
+            sfxVolumeSlider.interactable = interactable;
     }
+    #endregion
 
+    #region UI Updates (Public API for SettingsSection)
+    /// <summary>
+    /// 오디오 슬라이더 값 업데이트 (외부 호출용)
+    /// </summary>
+    public void UpdateAudioSlider(string settingName, float value, bool triggerEvent = false)
+    {
+        Slider targetSlider = settingName switch
+        {
+            "MasterVolume" => masterVolumeSlider,
+            "MusicVolume" => musicVolumeSlider,
+            "SfxVolume" => sfxVolumeSlider,
+            "Brightness" => brightnessSlider,
+            _ => null
+        };
+        
+        if (targetSlider != null)
+        {
+            // 이벤트 발생 방지를 위해 임시 구독 해제
+            if (!triggerEvent)
+            {
+                var currentValue = targetSlider.value;
+                targetSlider.onValueChanged.RemoveAllListeners();
+                targetSlider.value = value;
+                
+                // 이벤트 다시 등록
+                if (settingName == "Brightness")
+                    targetSlider.onValueChanged.AddListener(val => HandleAudioSettingChanged("Brightness", val));
+                else
+                    targetSlider.onValueChanged.AddListener(val => HandleAudioSettingChanged(settingName, val));
+            }
+            else
+            {
+                targetSlider.value = value;
+            }
+            
+            _uiStateCache[settingName.ToLower()] = value;
+            Debug.Log($"[SettingsSectionUI] Updated {settingName} slider to {value}");
+        }
+    }
+    
+    /// <summary>
+    /// 토글 상태 업데이트 (외부 호출용)
+    /// </summary>
+    public void UpdateToggle(string settingName, bool value, bool triggerEvent = false)
+    {
+        Toggle targetToggle = settingName switch
+        {
+            "IsMuted" => muteToggle,
+            "IsFullscreen" => fullscreenToggle,
+            "VibrationEnabled" => vibrationToggle,
+            _ => null
+        };
+        
+        if (targetToggle != null)
+        {
+            // 이벤트 발생 방지를 위해 임시 구독 해제
+            if (!triggerEvent)
+            {
+                targetToggle.onValueChanged.RemoveAllListeners();
+                targetToggle.isOn = value;
+                
+                // 이벤트 다시 등록
+                targetToggle.onValueChanged.AddListener(val => HandleToggleSettingChanged(settingName, val));
+            }
+            else
+            {
+                targetToggle.isOn = value;
+            }
+            
+            _uiStateCache[settingName.ToLower()] = value;
+            
+            // 음소거 특별 처리
+            if (settingName == "IsMuted")
+            {
+                UpdateAudioSlidersInteractable(!value);
+            }
+            
+            Debug.Log($"[SettingsSectionUI] Updated {settingName} toggle to {value}");
+        }
+    }
+    
+    /// <summary>
+    /// 품질 드롭다운 업데이트 (외부 호출용)
+    /// </summary>
+    public void UpdateQualityDropdown(int value, bool triggerEvent = false)
+    {
+        if (qualityDropdown != null)
+        {
+            // 이벤트 발생 방지를 위해 임시 구독 해제
+            if (!triggerEvent)
+            {
+                qualityDropdown.onValueChanged.RemoveAllListeners();
+                qualityDropdown.value = value;
+                
+                // 이벤트 다시 등록
+                qualityDropdown.onValueChanged.AddListener(val => OnQualitySettingChanged?.Invoke(val));
+            }
+            else
+            {
+                qualityDropdown.value = value;
+            }
+            
+            _uiStateCache["qualityLevel"] = value;
+            Debug.Log($"[SettingsSectionUI] Updated quality dropdown to {value}");
+        }
+    }
+    
+    /// <summary>
+    /// 버튼 활성화 상태 업데이트
+    /// </summary>
+    public void UpdateButtonInteractable(string buttonName, bool interactable)
+    {
+        Button targetButton = buttonName switch
+        {
+            "Settings" => settingsButton,
+            "Logout" => logoutButton,
+            "Help" => helpButton,
+            "Notification" => notificationButton,
+            _ => null
+        };
+        
+        if (targetButton != null)
+        {
+            targetButton.interactable = interactable;
+            Debug.Log($"[SettingsSectionUI] Updated {buttonName} button interactable to {interactable}");
+        }
+    }
+    #endregion
+
+    #region Notification System
+    /// <summary>
+    /// 알림 추가 (외부 호출용)
+    /// </summary>
+    public void AddNotification(NotificationMessage notification)
+    {
+        if (notification == null) return;
+        
+        _notificationQueue.Enqueue(notification);
+        UpdateNotificationIndicator();
+        
+        if (!_isShowingNotification)
+        {
+            ShowNextNotification();
+        }
+        
+        Debug.Log($"[SettingsSectionUI] Added notification: {notification.Message}");
+    }
+    
+    /// <summary>
+    /// 다음 알림 표시
+    /// </summary>
+    public void ShowNextNotification()
+    {
+        if (_notificationQueue.Count == 0 || _isShowingNotification) return;
+        
+        NotificationMessage notification = _notificationQueue.Dequeue();
+        StartCoroutine(ShowNotificationCoroutine(notification));
+    }
+    
+    private IEnumerator ShowNotificationCoroutine(NotificationMessage notification)
+    {
+        _isShowingNotification = true;
+        
+        if (notificationPanel != null)
+        {
+            // UI 업데이트
+            if (notificationText != null)
+                notificationText.text = notification.Message;
+                
+            if (notificationIcon != null && notification.IconSprite != null)
+                notificationIcon.sprite = notification.IconSprite;
+            
+            // 패널 표시 애니메이션
+            yield return StartCoroutine(AnimateNotificationPanel(true));
+            
+            // 자동 닫기 타이머
+            if (notification.AutoCloseDelay > 0)
+            {
+                yield return new WaitForSeconds(notification.AutoCloseDelay);
+                if (_isShowingNotification)
+                {
+                    HideNotificationPanel();
+                }
+            }
+        }
+    }
+    
+    /// <summary>
+    /// 알림 패널 숨기기 (외부 호출용)
+    /// </summary>
+    public void HideNotificationPanel()
+    {
+        if (!_isShowingNotification) return;
+        
+        StartCoroutine(HideNotificationCoroutine());
+    }
+    
+    private IEnumerator HideNotificationCoroutine()
+    {
+        if (notificationPanel != null)
+        {
+            yield return StartCoroutine(AnimateNotificationPanel(false));
+        }
+        
+        _isShowingNotification = false;
+        UpdateNotificationIndicator();
+        
+        // 다음 알림이 있으면 표시
+        if (_notificationQueue.Count > 0)
+        {
+            yield return new WaitForSeconds(1f);
+            ShowNextNotification();
+        }
+    }
+    
+    private IEnumerator AnimateNotificationPanel(bool show)
+    {
+        if (notificationPanel == null) yield break;
+        
+        if (_currentAnimationCoroutine != null)
+        {
+            StopCoroutine(_currentAnimationCoroutine);
+        }
+        
+        float startScale = show ? 0f : 1f;
+        float endScale = show ? 1f : 0f;
+        float elapsedTime = 0f;
+        
+        notificationPanel.SetActive(true);
+        notificationPanel.transform.localScale = Vector3.one * startScale;
+        
+        while (elapsedTime < animationDuration)
+        {
+            elapsedTime += Time.deltaTime;
+            float normalizedTime = elapsedTime / animationDuration;
+            float animatedValue = animationCurve.Evaluate(normalizedTime);
+            float currentScale = Mathf.Lerp(startScale, endScale, animatedValue);
+            
+            notificationPanel.transform.localScale = Vector3.one * currentScale;
+            yield return null;
+        }
+        
+        notificationPanel.transform.localScale = Vector3.one * endScale;
+        
+        if (!show)
+        {
+            notificationPanel.SetActive(false);
+        }
+    }
+    
+    private void UpdateNotificationIndicator()
+    {
+        if (newNotificationIndicator != null)
+        {
+            newNotificationIndicator.SetActive(_notificationQueue.Count > 0);
+        }
+    }
+    
+    /// <summary>
+    /// 모든 알림 제거 (외부 호출용)
+    /// </summary>
+    public void ClearAllNotifications()
+    {
+        _notificationQueue.Clear();
+        UpdateNotificationIndicator();
+        
+        if (_isShowingNotification)
+        {
+            HideNotificationPanel();
+        }
+        
+        Debug.Log("[SettingsSectionUI] All notifications cleared");
+    }
+    #endregion
+
+    #region Utility Methods
     private void PopulateQualityDropdown()
     {
         if (qualityDropdown == null) return;
@@ -280,7 +616,7 @@ public class SettingsSectionUI : SectionBase
         List<string> qualityOptions = new List<string>
         {
             "낮음",
-            "보통",
+            "보통", 
             "높음",
             "매우 높음"
         };
@@ -288,325 +624,6 @@ public class SettingsSectionUI : SectionBase
         qualityDropdown.AddOptions(qualityOptions);
     }
 
-    private void LoadUserSpecificSettings(UserData userData)
-    {
-        // 사용자별 개인화 설정 로드 (향후 구현)
-        Debug.Log($"[SettingsSectionUI] Loading user specific settings for: {userData.DisplayName}");
-    }
-
-    private void SavePendingSettings()
-    {
-        if (!_settingsChanged || _pendingSettings.Count == 0) return;
-        
-        if (_settingsSaveCoroutine != null)
-            StopCoroutine(_settingsSaveCoroutine);
-            
-        _settingsSaveCoroutine = StartCoroutine(SaveSettingsCoroutine());
-    }
-
-    private IEnumerator SaveSettingsCoroutine()
-    {
-        yield return new WaitForSeconds(0.5f); // 설정 변경이 완전히 끝날 때까지 대기
-        
-        foreach (var kvp in _pendingSettings)
-        {
-            SetSetting(kvp.Key, kvp.Value);
-            Debug.Log($"[SettingsSectionUI] Saved setting: {kvp.Key} = {kvp.Value}");
-        }
-        
-        _pendingSettings.Clear();
-        _settingsChanged = false;
-        
-        // 다른 섹션들에게 설정 변경 알림
-        BroadcastToAllSections(new SettingsChangedMessage
-        {
-            Timestamp = DateTime.Now,
-            SettingsCount = _pendingSettings.Count
-        });
-        
-        Debug.Log("[SettingsSectionUI] All pending settings saved");
-    }
-
-    private void QueueSettingChange(string settingName, object value)
-    {
-        _pendingSettings[settingName] = value;
-        _settingsChanged = true;
-        
-        // 자동 저장 타이머 재시작
-        if (_settingsSaveCoroutine != null)
-            StopCoroutine(_settingsSaveCoroutine);
-            
-        _settingsSaveCoroutine = StartCoroutine(SaveSettingsCoroutine());
-    }
-    #endregion
-
-    #region Event Handlers
-    private void OnSettingsClicked()
-    {
-        Debug.Log("[SettingsSectionUI] Settings button clicked");
-        
-        // 상세 설정 화면으로 전환 (향후 구현)
-        SendMessageToSection(MainPageSectionType.Profile, new SettingsRequest
-        {
-            RequestType = "show_detailed_settings",
-            FromSection = SectionType
-        });
-    }
-
-    private void OnLogoutClicked()
-    {
-        Debug.Log("[SettingsSectionUI] Logout button clicked");
-        
-        ShowLogoutConfirmation();
-    }
-
-    private void OnHelpClicked()
-    {
-        Debug.Log("[SettingsSectionUI] Help button clicked");
-        
-        // 도움말 화면으로 전환
-        SendMessageToSection(MainPageSectionType.Profile, new HelpRequest
-        {
-            RequestType = "show_help",
-            Topic = "main_menu"
-        });
-    }
-
-    private void OnNotificationClicked()
-    {
-        Debug.Log("[SettingsSectionUI] Notification button clicked");
-        
-        ShowNextNotification();
-    }
-
-    // Audio event handlers
-    private void OnMasterVolumeChanged(float value)
-    {
-        _masterVolume = value;
-        ApplyAudioSetting("MasterVolume", value);
-        QueueSettingChange("MasterVolume", value);
-        
-        Debug.Log($"[SettingsSectionUI] Master volume changed: {value}");
-    }
-
-    private void OnMusicVolumeChanged(float value)
-    {
-        _musicVolume = value;
-        ApplyAudioSetting("MusicVolume", value);
-        QueueSettingChange("MusicVolume", value);
-    }
-
-    private void OnSfxVolumeChanged(float value)
-    {
-        _sfxVolume = value;
-        ApplyAudioSetting("SfxVolume", value);
-        QueueSettingChange("SfxVolume", value);
-    }
-
-    private void OnMuteToggleChanged(bool isMuted)
-    {
-        _isMuted = isMuted;
-        ApplyAudioSetting("IsMuted", isMuted);
-        QueueSettingChange("IsMuted", isMuted);
-        
-        // 음소거 시 슬라이더 비활성화
-        if (masterVolumeSlider != null)
-            masterVolumeSlider.interactable = !isMuted;
-        if (musicVolumeSlider != null)
-            musicVolumeSlider.interactable = !isMuted;
-        if (sfxVolumeSlider != null)
-            sfxVolumeSlider.interactable = !isMuted;
-    }
-
-    // Display event handlers
-    private void OnFullscreenToggleChanged(bool isFullscreen)
-    {
-        _isFullscreen = isFullscreen;
-        ApplyDisplaySetting("IsFullscreen", isFullscreen);
-        QueueSettingChange("IsFullscreen", isFullscreen);
-        
-        Screen.fullScreen = isFullscreen;
-    }
-
-    private void OnQualityChanged(int qualityIndex)
-    {
-        _qualityLevel = qualityIndex;
-        ApplyDisplaySetting("QualityLevel", qualityIndex);
-        QueueSettingChange("QualityLevel", qualityIndex);
-        
-        QualitySettings.SetQualityLevel(qualityIndex);
-    }
-
-    private void OnVibrationToggleChanged(bool enabled)
-    {
-        _vibrationEnabled = enabled;
-        ApplyDisplaySetting("VibrationEnabled", enabled);
-        QueueSettingChange("VibrationEnabled", enabled);
-    }
-
-    private void OnBrightnessChanged(float value)
-    {
-        _brightness = value;
-        ApplyDisplaySetting("Brightness", value);
-        QueueSettingChange("Brightness", value);
-        
-        Screen.brightness = value;
-    }
-
-    private void OnCloseNotificationClicked()
-    {
-        HideNotificationPanel();
-    }
-    #endregion
-
-    #region Settings Application
-    private void ApplyAudioSetting(string settingName, object value)
-    {
-        // 오디오 설정 즉시 적용 (AudioManager와 연동)
-        switch (settingName)
-        {
-            case "MasterVolume":
-                AudioListener.volume = _isMuted ? 0f : (float)value;
-                break;
-            case "IsMuted":
-                AudioListener.volume = (bool)value ? 0f : _masterVolume;
-                break;
-        }
-        
-        Debug.Log($"[SettingsSectionUI] Applied audio setting: {settingName} = {value}");
-    }
-
-    private void ApplyDisplaySetting(string settingName, object value)
-    {
-        // 디스플레이 설정 즉시 적용
-        Debug.Log($"[SettingsSectionUI] Applied display setting: {settingName} = {value}");
-    }
-    #endregion
-
-    #region Notification System
-    private void CheckForNewNotifications()
-    {
-        // 새로운 알림 확인 (향후 서버 연동)
-        ShowNewNotificationIndicator(_notificationQueue.Count > 0);
-    }
-
-    private void ShowNewNotificationIndicator(bool show)
-    {
-        if (newNotificationIndicator != null)
-            newNotificationIndicator.SetActive(show);
-    }
-
-    private void ShowNextNotification()
-    {
-        if (_notificationQueue.Count == 0 || _isShowingNotification) return;
-        
-        NotificationMessage notification = _notificationQueue.Dequeue();
-        ShowNotificationPanel(notification);
-    }
-
-    private void ShowNotificationPanel(NotificationMessage notification)
-    {
-        if (notificationPanel == null) return;
-        
-        _isShowingNotification = true;
-        
-        SafeUIUpdate(() =>
-        {
-            if (notificationText != null)
-                notificationText.text = notification.Message;
-                
-            if (notificationIcon != null && notification.IconSprite != null)
-                notificationIcon.sprite = notification.IconSprite;
-                
-            notificationPanel.SetActive(true);
-            
-        }, "Show Notification");
-        
-        // 자동 닫기 타이머 시작
-        StartCoroutine(AutoCloseNotificationCoroutine(notification.AutoCloseDelay));
-    }
-
-    private void HideNotificationPanel()
-    {
-        if (notificationPanel != null)
-            notificationPanel.SetActive(false);
-            
-        _isShowingNotification = false;
-        
-        // 다음 알림이 있으면 표시
-        if (_notificationQueue.Count > 0)
-        {
-            StartCoroutine(ShowNextNotificationWithDelay());
-        }
-        else
-        {
-            ShowNewNotificationIndicator(false);
-        }
-    }
-
-    private IEnumerator ShowNextNotificationWithDelay()
-    {
-        yield return new WaitForSeconds(1f);
-        ShowNextNotification();
-    }
-
-    private IEnumerator AutoCloseNotificationCoroutine(float delay)
-    {
-        if (delay > 0)
-        {
-            yield return new WaitForSeconds(delay);
-            if (_isShowingNotification)
-            {
-                HideNotificationPanel();
-            }
-        }
-    }
-
-    public void AddNotification(NotificationMessage notification)
-    {
-        _notificationQueue.Enqueue(notification);
-        ShowNewNotificationIndicator(true);
-        
-        if (!_isShowingNotification)
-        {
-            ShowNextNotification();
-        }
-    }
-    #endregion
-
-    #region Logout Confirmation
-    private void ShowLogoutConfirmation()
-    {
-        // 로그아웃 확인 대화상자 표시
-        AddNotification(new NotificationMessage
-        {
-            Message = "정말 로그아웃하시겠습니까?",
-            Type = NotificationType.Confirmation,
-            AutoCloseDelay = 0f, // 수동으로 닫아야 함
-            OnConfirm = ConfirmLogout,
-            OnCancel = CancelLogout
-        });
-    }
-
-    private void ConfirmLogout()
-    {
-        Debug.Log("[SettingsSectionUI] Logout confirmed");
-        
-        // 설정 저장 후 로그아웃
-        SavePendingSettings();
-        
-        // MainPageManager를 통한 로그아웃
-        RequestLogout();
-    }
-
-    private void CancelLogout()
-    {
-        Debug.Log("[SettingsSectionUI] Logout cancelled");
-        HideNotificationPanel();
-    }
-    #endregion
-
-    #region Version and Info
     private void SetupVersionInfo()
     {
         if (versionText != null)
@@ -614,113 +631,52 @@ public class SettingsSectionUI : SectionBase
             versionText.text = $"v{Application.version}";
         }
     }
-    #endregion
-
-    #region Virtual Method Overrides
-    protected override void OnOfflineModeChanged(bool isOfflineMode)
+    
+    /// <summary>
+    /// 현재 UI 상태 가져오기
+    /// </summary>
+    public Dictionary<string, object> GetCurrentUIState()
     {
-        // 오프라인 모드에서는 일부 설정 비활성화
-        if (logoutButton != null)
-            logoutButton.interactable = !isOfflineMode;
+        return new Dictionary<string, object>(_uiStateCache);
     }
-
-    protected override void OnForceRefresh()
+    
+    /// <summary>
+    /// UI 상태 일괄 업데이트
+    /// </summary>
+    public void UpdateUIState(Dictionary<string, object> newState, bool triggerEvents = false)
     {
-        LoadCurrentSettings();
-        InitializeUI();
-        RefreshSettingsDisplay();
-    }
-
-    protected override void OnReceiveMessage(MainPageSectionType fromSection, object data)
-    {
-        Debug.Log($"[SettingsSectionUI] Received message from {fromSection}: {data?.GetType().Name}");
+        foreach (var kvp in newState)
+        {
+            switch (kvp.Key.ToLower())
+            {
+                case "mastervolume":
+                case "musicvolume":
+                case "sfxvolume":
+                case "brightness":
+                    if (kvp.Value is float floatValue)
+                        UpdateAudioSlider(kvp.Key, floatValue, triggerEvents);
+                    break;
+                    
+                case "ismuted":
+                case "isfullscreen":
+                case "vibrationenabled":
+                    if (kvp.Value is bool boolValue)
+                        UpdateToggle(kvp.Key, boolValue, triggerEvents);
+                    break;
+                    
+                case "qualitylevel":
+                    if (kvp.Value is int intValue)
+                        UpdateQualityDropdown(intValue, triggerEvents);
+                    break;
+            }
+        }
         
-        if (data is ProfileDetailRequest profileRequest)
-        {
-            HandleProfileRequest(profileRequest);
-        }
-        else if (data is AchievementRequest achievementRequest)
-        {
-            HandleAchievementRequest(achievementRequest);
-        }
-        else if (data is StatisticsRequest statsRequest)
-        {
-            HandleStatisticsRequest(statsRequest);
-        }
-        else if (data is string message && message == "focus_requested")
-        {
-            RefreshSettingsDisplay();
-        }
-    }
-
-    protected override void OnSettingUpdated(string settingName, object newValue)
-    {
-        // 외부에서 설정 변경 시 UI 업데이트
-        RefreshSettingsDisplay();
-    }
-    #endregion
-
-    #region Message Handling
-    private void HandleProfileRequest(ProfileDetailRequest request)
-    {
-        switch (request.RequestType)
-        {
-            case "show_detail":
-                ShowProfileDetail(request.UserData);
-                break;
-        }
-    }
-
-    private void HandleAchievementRequest(AchievementRequest request)
-    {
-        switch (request.RequestType)
-        {
-            case "show_achievements":
-                ShowAchievements(request.UserId);
-                break;
-        }
-    }
-
-    private void HandleStatisticsRequest(StatisticsRequest request)
-    {
-        switch (request.RequestType)
-        {
-            case "show_statistics":
-                ShowStatistics(request.UserId);
-                break;
-        }
-    }
-
-    private void ShowProfileDetail(UserData userData)
-    {
-        Debug.Log($"[SettingsSectionUI] Showing profile detail for: {userData?.DisplayName}");
-        // 프로필 상세 화면 표시 (향후 구현)
-    }
-
-    private void ShowAchievements(string userId)
-    {
-        Debug.Log($"[SettingsSectionUI] Showing achievements for user: {userId}");
-        // 업적 화면 표시 (향후 구현)
-    }
-
-    private void ShowStatistics(string userId)
-    {
-        Debug.Log($"[SettingsSectionUI] Showing statistics for user: {userId}");
-        // 통계 화면 표시 (향후 구현)
-    }
-    #endregion
-
-    #region Utility Methods
-    private void RefreshSettingsDisplay()
-    {
-        LoadCurrentSettings();
-        InitializeUI();
-        CheckForNewNotifications();
+        Debug.Log($"[SettingsSectionUI] Updated UI state with {newState.Count} values");
     }
     #endregion
 }
 
-#region Data Classes
+#region Data Classes (Reusing from SettingsSectionUIComponent)
 [System.Serializable]
 public class NotificationMessage
 {
@@ -730,27 +686,6 @@ public class NotificationMessage
     public float AutoCloseDelay = 5f;
     public Action OnConfirm;
     public Action OnCancel;
-}
-
-[System.Serializable]
-public class SettingsRequest
-{
-    public string RequestType;
-    public MainPageSectionType FromSection;
-}
-
-[System.Serializable]
-public class HelpRequest
-{
-    public string RequestType;
-    public string Topic;
-}
-
-[System.Serializable]
-public class SettingsChangedMessage
-{
-    public DateTime Timestamp;
-    public int SettingsCount;
 }
 
 public enum NotificationType

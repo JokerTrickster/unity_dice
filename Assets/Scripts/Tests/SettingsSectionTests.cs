@@ -8,12 +8,14 @@ using NUnit.Framework;
 /// <summary>
 /// SettingsSection 단위 테스트
 /// 설정 관리, 로그아웃 시퀀스, 알림 시스템, 섹션 간 통신을 테스트합니다.
+/// 새로운 아키텍처: SettingsSection (비즈니스 로직) + SettingsSectionUI (순수 UI)
 /// </summary>
 public class SettingsSectionTests
 {
     private GameObject _testGameObject;
     private SettingsSection _settingsSection;
-    private SettingsSectionUIComponent _mockUI;
+    private SettingsSectionUI _settingsUI;
+    private SettingsSectionUIComponent _mockUIComponent;
     private MockMainPageManager _mockMainPageManager;
     private MockSettingsManager _mockSettingsManager;
     private MockAuthenticationManager _mockAuthenticationManager;
@@ -25,19 +27,21 @@ public class SettingsSectionTests
         // 테스트 GameObject 생성
         _testGameObject = new GameObject("TestSettingsSection");
         
-        // 컴포넌트 추가
+        // 컴포넌트 추가 - 새로운 아키텍처
         _settingsSection = _testGameObject.AddComponent<SettingsSection>();
-        _mockUI = _testGameObject.AddComponent<SettingsSectionUIComponent>();
+        _settingsUI = _testGameObject.AddComponent<SettingsSectionUI>();
+        _mockUIComponent = _testGameObject.AddComponent<SettingsSectionUIComponent>();
         
         // Mock 매니저들 설정
         SetupMockManagers();
         
         // 테스트용 필드 설정 (Reflection 사용)
+        // SettingsSection이 SettingsSectionUIComponent를 참조하도록 설정
         var uiField = typeof(SettingsSection).GetField("_settingsUI", 
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        uiField?.SetValue(_settingsSection, _mockUI);
+        uiField?.SetValue(_settingsSection, _mockUIComponent);
         
-        Debug.Log("[SettingsSectionTests] Setup complete");
+        Debug.Log("[SettingsSectionTests] Setup complete with new architecture");
     }
     
     [TearDown]
@@ -194,11 +198,24 @@ public class SettingsSectionTests
     {
         // Arrange
         _settingsSection.Initialize(_mockMainPageManager);
+        bool eventTriggered = false;
+        string capturedSetting = "";
+        float capturedValue = 0f;
+        
+        // Subscribe to UI events
+        SettingsSectionUIComponent.OnAudioSettingChanged += (setting, value) => {
+            eventTriggered = true;
+            capturedSetting = setting;
+            capturedValue = value;
+        };
         
         // Act - Simulate UI event
         SettingsSectionUIComponent.OnAudioSettingChanged?.Invoke("MasterVolume", 0.7f);
         
         // Assert
+        Assert.IsTrue(eventTriggered);
+        Assert.AreEqual("MasterVolume", capturedSetting);
+        Assert.AreEqual(0.7f, capturedValue, 0.01f);
         Assert.AreEqual(0.7f, _settingsSection.GetCachedSetting<float>("MasterVolume"), 0.01f);
         Assert.AreEqual(0.7f, AudioListener.volume, 0.01f); // Should be applied immediately
         Debug.Log("[SettingsSectionTests] Audio setting change handling verified");
@@ -419,6 +436,159 @@ public class SettingsSectionTests
         // Assert - Should complete within reasonable time (< 100ms)
         Assert.Less(stopwatch.ElapsedMilliseconds, 100);
         Debug.Log($"[SettingsSectionTests] Cache performance verified: {stopwatch.ElapsedMilliseconds}ms for 1000 operations");
+    }
+    #endregion
+
+    #region Pure UI Component Tests
+    [Test]
+    public void SettingsSectionUI_Initialization_SetsUpCorrectly()
+    {
+        // Arrange & Act
+        var isInitialized = _settingsUI.IsInitialized;
+        
+        // Assert - Should initialize during Start()
+        Assert.IsTrue(isInitialized);
+        Debug.Log("[SettingsSectionTests] Pure UI component initialization verified");
+    }
+    
+    [Test]
+    public void SettingsSectionUI_UpdateAudioSlider_UpdatesCorrectly()
+    {
+        // Arrange
+        float testValue = 0.6f;
+        
+        // Act
+        _settingsUI.UpdateAudioSlider("MasterVolume", testValue, false);
+        
+        // Assert
+        var uiState = _settingsUI.GetCurrentUIState();
+        Assert.IsTrue(uiState.ContainsKey("mastervolume"));
+        Assert.AreEqual(testValue, (float)uiState["mastervolume"], 0.01f);
+        Debug.Log("[SettingsSectionTests] Pure UI audio slider update verified");
+    }
+    
+    [Test]
+    public void SettingsSectionUI_UpdateToggle_UpdatesCorrectly()
+    {
+        // Arrange
+        bool testValue = true;
+        
+        // Act
+        _settingsUI.UpdateToggle("IsMuted", testValue, false);
+        
+        // Assert
+        var uiState = _settingsUI.GetCurrentUIState();
+        Assert.IsTrue(uiState.ContainsKey("ismuted"));
+        Assert.AreEqual(testValue, (bool)uiState["ismuted"]);
+        Debug.Log("[SettingsSectionTests] Pure UI toggle update verified");
+    }
+    
+    [Test]
+    public void SettingsSectionUI_UpdateQualityDropdown_UpdatesCorrectly()
+    {
+        // Arrange
+        int testValue = 3;
+        
+        // Act
+        _settingsUI.UpdateQualityDropdown(testValue, false);
+        
+        // Assert
+        var uiState = _settingsUI.GetCurrentUIState();
+        Assert.IsTrue(uiState.ContainsKey("qualityLevel"));
+        Assert.AreEqual(testValue, (int)uiState["qualityLevel"]);
+        Debug.Log("[SettingsSectionTests] Pure UI quality dropdown update verified");
+    }
+    
+    [Test]
+    public void SettingsSectionUI_AddNotification_AddsToQueue()
+    {
+        // Arrange
+        var notification = new NotificationMessage
+        {
+            Message = "Test notification",
+            Type = NotificationType.Info,
+            AutoCloseDelay = 5f
+        };
+        
+        int initialCount = _settingsUI.PendingNotificationCount;
+        
+        // Act
+        _settingsUI.AddNotification(notification);
+        
+        // Assert
+        Assert.AreEqual(initialCount + 1, _settingsUI.PendingNotificationCount);
+        Debug.Log("[SettingsSectionTests] Pure UI notification addition verified");
+    }
+    
+    [Test]
+    public void SettingsSectionUI_ClearAllNotifications_ClearsQueue()
+    {
+        // Arrange
+        var notification = new NotificationMessage
+        {
+            Message = "Test notification",
+            Type = NotificationType.Info
+        };
+        
+        _settingsUI.AddNotification(notification);
+        Assert.Greater(_settingsUI.PendingNotificationCount, 0);
+        
+        // Act
+        _settingsUI.ClearAllNotifications();
+        
+        // Assert
+        Assert.AreEqual(0, _settingsUI.PendingNotificationCount);
+        Debug.Log("[SettingsSectionTests] Pure UI notification clearing verified");
+    }
+    
+    [Test]
+    public void SettingsSectionUI_UpdateUIState_UpdatesMultipleValues()
+    {
+        // Arrange
+        var newState = new Dictionary<string, object>
+        {
+            ["mastervolume"] = 0.8f,
+            ["ismuted"] = true,
+            ["qualitylevel"] = 2
+        };
+        
+        // Act
+        _settingsUI.UpdateUIState(newState, false);
+        
+        // Assert
+        var currentState = _settingsUI.GetCurrentUIState();
+        Assert.AreEqual(0.8f, (float)currentState["mastervolume"], 0.01f);
+        Assert.AreEqual(true, (bool)currentState["ismuted"]);
+        Assert.AreEqual(2, (int)currentState["qualitylevel"]);
+        Debug.Log("[SettingsSectionTests] Pure UI bulk state update verified");
+    }
+    
+    [Test]
+    public void SettingsSectionUI_EventFiring_WorksCorrectly()
+    {
+        // Arrange
+        bool settingsButtonClicked = false;
+        bool logoutButtonClicked = false;
+        bool helpButtonClicked = false;
+        bool notificationButtonClicked = false;
+        
+        SettingsSectionUI.OnSettingsButtonClicked += () => settingsButtonClicked = true;
+        SettingsSectionUI.OnLogoutButtonClicked += () => logoutButtonClicked = true;
+        SettingsSectionUI.OnHelpButtonClicked += () => helpButtonClicked = true;
+        SettingsSectionUI.OnNotificationButtonClicked += () => notificationButtonClicked = true;
+        
+        // Act
+        SettingsSectionUI.OnSettingsButtonClicked?.Invoke();
+        SettingsSectionUI.OnLogoutButtonClicked?.Invoke();
+        SettingsSectionUI.OnHelpButtonClicked?.Invoke();
+        SettingsSectionUI.OnNotificationButtonClicked?.Invoke();
+        
+        // Assert
+        Assert.IsTrue(settingsButtonClicked);
+        Assert.IsTrue(logoutButtonClicked);
+        Assert.IsTrue(helpButtonClicked);
+        Assert.IsTrue(notificationButtonClicked);
+        Debug.Log("[SettingsSectionTests] Pure UI event firing verified");
     }
     #endregion
 
