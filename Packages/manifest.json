@@ -1,10 +1,10 @@
 {
   "dependencies": {
-    "com.google.play.games": "0.11.01",
-    "com.unity.collab-proxy": "2.4.4",
+    "com.google.play.games": "https://github.com/playgameservices/play-games-plugin-for-unity.git#v0.11.1",
+    "com.unity.collab-proxy": "2.8.2",
     "com.unity.feature.development": "1.0.2",
-    "com.unity.textmeshpro": "3.0.8",
-    "com.unity.timeline": "1.8.7",
+    "com.unity.multiplayer.center": "1.0.0",
+    "com.unity.timeline": "1.8.9",
     "com.unity.ugui": "2.0.0",
     "com.unity.modules.ai": "1.0.0",
     "com.unity.modules.androidjni": "1.0.0",
