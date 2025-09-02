@@ -2,10 +2,12 @@ using System;
 using UnityEngine;
 
 /// <summary>
-/// 에너지 상태 관리자
+/// 에너지 상태 관리자 (구버전)
 /// 에너지의 현재 값, 최대값, 소비/충전 로직을 담당합니다.
+/// 새로운 MonoBehaviour Singleton EnergyManager로 교체됨
 /// </summary>
-public class EnergyManager
+[System.Obsolete("Use the new Singleton EnergyManager instead")]
+public class EnergyManagerOld
 {
     #region Events
     public event Action<int, int> OnEnergyChanged; // current, max

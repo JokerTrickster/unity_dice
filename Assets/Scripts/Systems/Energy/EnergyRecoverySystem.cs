@@ -31,17 +31,26 @@ public class EnergyRecoverySystem
 
     #region Private Fields
     private EnergyConfig _config;
-    private EnergyManager _energyManager;
+    private EnergyManagerOld _energyManager;
     private DateTime _lastUpdateTime;
     private int _totalRecoveredAmount;
     private int _recoveryTickCount;
     #endregion
 
     #region Constructor
-    public EnergyRecoverySystem(EnergyConfig config, EnergyManager energyManager)
+    public EnergyRecoverySystem(EnergyConfig config, EnergyManagerOld energyManager)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
         _energyManager = energyManager ?? throw new ArgumentNullException(nameof(energyManager));
+        
+        Initialize();
+    }
+    
+    // New constructor for the Singleton manager
+    public EnergyRecoverySystem(EnergyConfig config)
+    {
+        _config = config ?? throw new ArgumentNullException(nameof(config));
+        _energyManager = null; // Will use the Singleton instead
         
         Initialize();
     }

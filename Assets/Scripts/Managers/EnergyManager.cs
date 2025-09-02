@@ -244,7 +244,7 @@ public class EnergyManager : MonoBehaviour
     /// </summary>
     private void InitializeRecoverySystem()
     {
-        _recoverySystem = new EnergyRecoverySystem(_config, this);
+        _recoverySystem = new EnergyRecoverySystem(_config);
         _recoverySystem.OnEnergyRecovered += HandleEnergyRecovered;
         
         if (enableDebugLogs)
