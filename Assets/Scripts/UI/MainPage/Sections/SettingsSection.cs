@@ -13,6 +13,7 @@ public class SettingsSection : SectionBase
     #region UI Component References
     [Header("UI Component Reference")]
     [SerializeField] private SettingsSectionUIComponent _settingsUI;
+    [SerializeField] private MailboxUI _mailboxUI;
     #endregion
 
     #region Section Properties
@@ -145,6 +146,7 @@ public class SettingsSection : SectionBase
         SettingsSectionUIComponent.OnLogoutButtonClicked += HandleLogoutButtonClicked;
         SettingsSectionUIComponent.OnHelpButtonClicked += HandleHelpButtonClicked;
         SettingsSectionUIComponent.OnNotificationButtonClicked += HandleNotificationButtonClicked;
+        SettingsSectionUIComponent.OnMailboxButtonClicked += HandleMailboxButtonClicked;
         SettingsSectionUIComponent.OnAudioSettingChanged += HandleAudioSettingChanged;
         SettingsSectionUIComponent.OnToggleSettingChanged += HandleToggleSettingChanged;
         SettingsSectionUIComponent.OnQualitySettingChanged += HandleQualitySettingChanged;
@@ -160,6 +162,7 @@ public class SettingsSection : SectionBase
         SettingsSectionUIComponent.OnLogoutButtonClicked -= HandleLogoutButtonClicked;
         SettingsSectionUIComponent.OnHelpButtonClicked -= HandleHelpButtonClicked;
         SettingsSectionUIComponent.OnNotificationButtonClicked -= HandleNotificationButtonClicked;
+        SettingsSectionUIComponent.OnMailboxButtonClicked -= HandleMailboxButtonClicked;
         SettingsSectionUIComponent.OnAudioSettingChanged -= HandleAudioSettingChanged;
         SettingsSectionUIComponent.OnToggleSettingChanged -= HandleToggleSettingChanged;
         SettingsSectionUIComponent.OnQualitySettingChanged -= HandleQualitySettingChanged;
@@ -206,6 +209,31 @@ public class SettingsSection : SectionBase
         if (_settingsUI != null)
         {
             _settingsUI.ShowNextNotification();
+        }
+    }
+    
+    private void HandleMailboxButtonClicked()
+    {
+        Debug.Log($"[{SectionType}Section] Mailbox button clicked");
+        
+        // Use direct reference first, fallback to finding if needed
+        if (_mailboxUI != null)
+        {
+            _mailboxUI.OpenMailbox();
+        }
+        else
+        {
+            // Fallback to finding in scene
+            var mailboxUI = FindObjectOfType<MailboxUI>();
+            if (mailboxUI != null)
+            {
+                _mailboxUI = mailboxUI; // Cache for next time
+                mailboxUI.OpenMailbox();
+            }
+            else
+            {
+                Debug.LogWarning($"[{SectionType}Section] MailboxUI component not found in scene");
+            }
         }
     }
     

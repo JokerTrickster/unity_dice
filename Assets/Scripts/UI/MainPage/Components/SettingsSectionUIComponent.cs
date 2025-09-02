@@ -33,6 +33,11 @@ public class SettingsSectionUIComponent : MonoBehaviour
     public static event Action OnNotificationButtonClicked;
     
     /// <summary>
+    /// 우편함 버튼 클릭 이벤트
+    /// </summary>
+    public static event Action OnMailboxButtonClicked;
+    
+    /// <summary>
     /// 오디오 설정 변경 이벤트
     /// </summary>
     public static event Action<string, float> OnAudioSettingChanged;
@@ -59,6 +64,8 @@ public class SettingsSectionUIComponent : MonoBehaviour
     [SerializeField] private Button logoutButton;
     [SerializeField] private Button helpButton;
     [SerializeField] private Button notificationButton;
+    [SerializeField] private Button mailboxButton;
+    [SerializeField] private MailboxBadge mailboxBadge;
     
     [Header("Audio Controls")]
     [SerializeField] private Slider masterVolumeSlider;
@@ -136,6 +143,7 @@ public class SettingsSectionUIComponent : MonoBehaviour
         OnLogoutButtonClicked = null;
         OnHelpButtonClicked = null;
         OnNotificationButtonClicked = null;
+        OnMailboxButtonClicked = null;
         OnAudioSettingChanged = null;
         OnToggleSettingChanged = null;
         OnQualitySettingChanged = null;
@@ -212,6 +220,9 @@ public class SettingsSectionUIComponent : MonoBehaviour
         if (notificationButton != null)
             notificationButton.onClick.AddListener(() => OnNotificationButtonClicked?.Invoke());
             
+        if (mailboxButton != null)
+            mailboxButton.onClick.AddListener(() => OnMailboxButtonClicked?.Invoke());
+            
         // Audio controls
         if (masterVolumeSlider != null)
             masterVolumeSlider.onValueChanged.AddListener(value => HandleAudioSettingChanged("MasterVolume", value));
@@ -258,6 +269,9 @@ public class SettingsSectionUIComponent : MonoBehaviour
             
         if (notificationButton != null)
             notificationButton.onClick.RemoveAllListeners();
+            
+        if (mailboxButton != null)
+            mailboxButton.onClick.RemoveAllListeners();
             
         if (masterVolumeSlider != null)
             masterVolumeSlider.onValueChanged.RemoveAllListeners();
