@@ -4,14 +4,24 @@ using System;
 using System.Collections;
 
 /// <summary>
-/// 에너지 섹션 UI 컴포넌트
+/// 에너지 섹션 UI 컴포넌트 (Stream B Integration)
 /// 사용자의 에너지 상태를 표시하고 관리하는 UI 섹션입니다.
 /// SectionBase를 상속하여 MainPageManager와 연동됩니다.
+/// 
+/// 하이브리드 접근 방식:
+/// - 새로운 전용 Energy UI 컴포넌트들(EnergyDisplayUI, EnergyBar, EnergyPurchaseUI)을 우선 사용
+/// - 새 컴포넌트가 없으면 기존 레거시 시스템으로 폴백
+/// - 실시간 업데이트와 시각적 피드백을 위한 이벤트 시스템 통합
 /// </summary>
 public class EnergySectionUI : SectionBase
 {
-    #region UI References
-    [Header("Energy Display")]
+    #region UI References - New Component Integration
+    [Header("Energy Display Components")]
+    [SerializeField] private EnergyDisplayUI energyDisplayUI;
+    [SerializeField] private EnergyBar energyBar;
+    [SerializeField] private EnergyPurchaseUI energyPurchaseUI;
+    
+    [Header("Legacy UI References (for backward compatibility)")]
     [SerializeField] private Slider energySlider;
     [SerializeField] private Text currentEnergyText;
     [SerializeField] private Text maxEnergyText;
@@ -67,6 +77,10 @@ public class EnergySectionUI : SectionBase
     #region SectionBase Implementation
     protected override void OnInitialize()
     {
+        // Initialize new energy components first
+        InitializeEnergyComponents();
+        
+        // Legacy initialization for backward compatibility
         SetupUIEvents();
         SetupEnergyGradient();
         InitializeEnergyData();
@@ -87,8 +101,25 @@ public class EnergySectionUI : SectionBase
 
     protected override void OnCleanup()
     {
+        // Cleanup new component event subscriptions
+        if (energyDisplayUI != null)
+        {
+            EnergyDisplayUI.OnEnergyDisplayUpdated -= OnEnergyDisplayUpdated;
+            EnergyDisplayUI.OnLowEnergyStateChanged -= OnLowEnergyStateChanged;
+            EnergyDisplayUI.OnPurchaseRequested -= OnPurchaseRequested;
+        }
+
+        if (energyPurchaseUI != null)
+        {
+            EnergyPurchaseUI.OnPurchaseCompleted -= OnPurchaseCompleted;
+            EnergyPurchaseUI.OnPurchaseFailed -= OnPurchaseFailed;
+        }
+
+        // Legacy cleanup
         UnsubscribeFromUIEvents();
         StopAllCoroutines();
+        
+        Debug.Log("[EnergySectionUI] Cleanup completed");
     }
 
     protected override void UpdateUI(UserData userData)
@@ -100,9 +131,19 @@ public class EnergySectionUI : SectionBase
         _maxEnergy = userData.MaxEnergy;
         _lastRechargeTime = userData.LastEnergyRechargeTime;
         
-        UpdateEnergyDisplay();
-        UpdateRechargeInfo();
-        UpdateVisualState();
+        // Use new components if available, otherwise fallback to legacy
+        if (energyDisplayUI != null)
+        {
+            // New component system handles the updates automatically
+            energyDisplayUI.TriggerUpdate();
+        }
+        else
+        {
+            // Legacy system
+            UpdateEnergyDisplay();
+            UpdateRechargeInfo();
+            UpdateVisualState();
+        }
         
         Debug.Log($"[EnergySectionUI] UI updated - Energy: {_currentEnergy}/{_maxEnergy}");
     }
@@ -161,6 +202,56 @@ public class EnergySectionUI : SectionBase
     #endregion
 
     #region Energy Management
+    /// <summary>
+    /// 새로운 에너지 컴포넌트 초기화
+    /// </summary>
+    private void InitializeEnergyComponents()
+    {
+        // Validate new components
+        if (energyDisplayUI == null)
+        {
+            energyDisplayUI = GetComponentInChildren<EnergyDisplayUI>();
+            if (energyDisplayUI == null)
+            {
+                Debug.LogWarning("[EnergySectionUI] EnergyDisplayUI component not found in children");
+            }
+        }
+
+        if (energyBar == null)
+        {
+            energyBar = GetComponentInChildren<EnergyBar>();
+            if (energyBar == null)
+            {
+                Debug.LogWarning("[EnergySectionUI] EnergyBar component not found in children");
+            }
+        }
+
+        if (energyPurchaseUI == null)
+        {
+            energyPurchaseUI = GetComponentInChildren<EnergyPurchaseUI>();
+            if (energyPurchaseUI == null)
+            {
+                Debug.LogWarning("[EnergySectionUI] EnergyPurchaseUI component not found in children");
+            }
+        }
+
+        // Subscribe to events from new components
+        if (energyDisplayUI != null)
+        {
+            EnergyDisplayUI.OnEnergyDisplayUpdated += OnEnergyDisplayUpdated;
+            EnergyDisplayUI.OnLowEnergyStateChanged += OnLowEnergyStateChanged;
+            EnergyDisplayUI.OnPurchaseRequested += OnPurchaseRequested;
+        }
+
+        if (energyPurchaseUI != null)
+        {
+            EnergyPurchaseUI.OnPurchaseCompleted += OnPurchaseCompleted;
+            EnergyPurchaseUI.OnPurchaseFailed += OnPurchaseFailed;
+        }
+
+        Debug.Log("[EnergySectionUI] New energy components initialized");
+    }
+
     private void InitializeEnergyData()
     {
         // UserDataManager에서 에너지 정보 로드
@@ -407,6 +498,81 @@ public class EnergySectionUI : SectionBase
     #endregion
 
     #region Event Handlers
+    /// <summary>
+    /// 새로운 컴포넌트 이벤트 핸들러들
+    /// </summary>
+    private void OnEnergyDisplayUpdated(int currentEnergy, int maxEnergy)
+    {
+        // Sync with legacy system
+        _currentEnergy = currentEnergy;
+        _maxEnergy = maxEnergy;
+        
+        // Update legacy UI if new components are not available
+        if (energyDisplayUI == null)
+        {
+            UpdateEnergyDisplay();
+        }
+        
+        Debug.Log($"[EnergySectionUI] Energy display updated: {currentEnergy}/{maxEnergy}");
+    }
+
+    private void OnLowEnergyStateChanged(bool isLowEnergy)
+    {
+        Debug.Log($"[EnergySectionUI] Low energy state changed: {isLowEnergy}");
+        
+        // Additional logic for low energy state changes
+        if (isLowEnergy)
+        {
+            // Could trigger notifications, sound effects, etc.
+            Debug.Log("[EnergySectionUI] Low energy warning triggered!");
+        }
+    }
+
+    private void OnPurchaseRequested()
+    {
+        Debug.Log("[EnergySectionUI] Purchase requested from EnergyDisplayUI");
+        
+        // Handle purchase request - delegate to purchase modal
+        if (energyPurchaseUI != null)
+        {
+            energyPurchaseUI.ShowPurchaseModal();
+        }
+        else
+        {
+            // Fallback to legacy purchase handling
+            OnBuyEnergyClicked();
+        }
+    }
+
+    private void OnPurchaseCompleted(EnergyPurchaseUI.PurchaseOption option)
+    {
+        Debug.Log($"[EnergySectionUI] Purchase completed: {option.displayName}");
+        
+        // Refresh display after purchase
+        RefreshEnergyDisplay();
+        
+        // Broadcast energy purchase success
+        BroadcastToAllSections(new EnergyChangedMessage
+        {
+            CurrentEnergy = _currentEnergy,
+            MaxEnergy = _maxEnergy,
+            ChangeAmount = option.energyAmount + option.bonusAmount,
+            ChangeReason = "Purchase",
+            Timestamp = DateTime.Now
+        });
+    }
+
+    private void OnPurchaseFailed(EnergyPurchaseUI.PurchaseOption option, string errorMessage)
+    {
+        Debug.LogError($"[EnergySectionUI] Purchase failed: {option.displayName} - {errorMessage}");
+        
+        // Handle purchase failure - could show additional UI feedback
+        // The EnergyPurchaseUI already handles showing error messages
+    }
+
+    /// <summary>
+    /// Legacy event handlers
+    /// </summary>
     private void OnRechargeButtonClicked()
     {
         Debug.Log("[EnergySectionUI] Recharge button clicked");
