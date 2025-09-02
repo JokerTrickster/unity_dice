@@ -619,6 +619,95 @@ public class MailboxManager : MonoBehaviour
             CacheInfo = MailboxCache.GetCacheInfo()
         };
     }
+
+    /// <summary>
+    /// 서버 데이터와 동기화 (MailboxSynchronizer에서 호출)
+    /// </summary>
+    /// <param name="serverData">서버에서 받은 우편함 데이터</param>
+    public void SyncWithServerData(MailboxData serverData)
+    {
+        if (serverData == null || !serverData.IsValid())
+        {
+            Debug.LogWarning("[MailboxManager] Invalid server data received for sync");
+            return;
+        }
+
+        try
+        {
+            var oldUnreadCount = _mailboxData?.unreadCount ?? 0;
+            
+            // 서버 데이터로 교체
+            _mailboxData = serverData;
+            
+            // 이벤트 발생
+            OnMailboxLoaded?.Invoke(_mailboxData);
+            OnMailboxUpdated?.Invoke(_mailboxData);
+            
+            if (oldUnreadCount != _mailboxData.unreadCount)
+            {
+                OnUnreadCountChanged?.Invoke(_mailboxData.unreadCount);
+            }
+            
+            // 캐시 업데이트
+            MailboxCache.SaveToCache(_mailboxData, _currentUserId);
+            
+            Debug.Log($"[MailboxManager] Synced with server: {_mailboxData.messages?.Count ?? 0} messages, {_mailboxData.unreadCount} unread");
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"[MailboxManager] Failed to sync with server data: {e.Message}");
+            OnError?.Invoke("서버 데이터 동기화에 실패했습니다");
+        }
+    }
+
+    /// <summary>
+    /// 첨부 파일 수령 결과 처리 (MailboxSynchronizer에서 호출)
+    /// </summary>
+    /// <param name="messageId">메시지 ID</param>
+    /// <param name="claimResult">수령 결과</param>
+    public void ProcessClaimResult(string messageId, ClaimResult claimResult)
+    {
+        if (claimResult == null || !claimResult.success)
+        {
+            Debug.LogWarning($"[MailboxManager] Invalid or failed claim result for message {messageId}");
+            OnError?.Invoke("선물 수령에 실패했습니다");
+            return;
+        }
+
+        try
+        {
+            var message = GetMessage(messageId);
+            if (message == null)
+            {
+                Debug.LogWarning($"[MailboxManager] Message not found for claim result: {messageId}");
+                return;
+            }
+
+            // 메시지 타입별 처리
+            if (message.type == MailMessageType.EnergyGift && claimResult.energyReceived > 0)
+            {
+                // EnergyManager에 에너지 추가 (있다면)
+                if (EnergyManager.Instance != null)
+                {
+                    EnergyManager.Instance.AddEnergy(claimResult.energyReceived);
+                    Debug.Log($"[MailboxManager] Added {claimResult.energyReceived} energy from gift");
+                }
+            }
+
+            // 메시지를 읽음으로 표시
+            if (!message.isRead)
+            {
+                MarkMessageAsRead(messageId, false); // 서버 동기화는 이미 완료됨
+            }
+
+            Debug.Log($"[MailboxManager] Processed claim result for message {messageId}: {claimResult.message}");
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"[MailboxManager] Failed to process claim result: {e.Message}");
+            OnError?.Invoke("선물 수령 처리 중 오류가 발생했습니다");
+        }
+    }
     #endregion
 }
 
