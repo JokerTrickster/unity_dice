@@ -610,18 +610,7 @@ public class HybridNetworkManager : MonoBehaviour
     /// <returns>인증 토큰</returns>
     private string GetNetworkManagerAuthToken()
     {
-        // NetworkManager는 private 필드로 authToken을 관리하므로
-        // 공개 API를 통해 접근하거나 리플렉션을 사용해야 함
-        // 여기서는 NetworkManager에 GetAuthToken() 메서드가 있다고 가정
-        try
-        {
-            var field = typeof(NetworkManager).GetField("authToken", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            return field?.GetValue(_networkManager) as string ?? "";
-        }
-        catch
-        {
-            return "";
-        }
+        return _networkManager?.GetAuthToken() ?? "";
     }
 
     /// <summary>

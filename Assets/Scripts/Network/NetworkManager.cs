@@ -596,6 +596,14 @@ public class NetworkManager : MonoBehaviour
     }
 
     /// <summary>
+    /// 인증 토큰 가져오기
+    /// </summary>
+    public string GetAuthToken()
+    {
+        return authToken;
+    }
+
+    /// <summary>
     /// 로깅 설정
     /// </summary>
     public void SetLogging(bool enabled, bool detailed = false)
