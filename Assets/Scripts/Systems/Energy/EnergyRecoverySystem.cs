@@ -16,7 +16,7 @@ public class EnergyRecoverySystem
     public DateTime LastRechargeTime { get; private set; }
     public TimeSpan RechargeInterval => _config.RechargeInterval;
     public int RechargeAmount => _config.RechargeRate;
-    public bool CanRechargeNow => TimeUntilNextRecharge.TotalSeconds <= 0 && !_energyManager.IsEnergyFull;
+    public bool CanRechargeNow => TimeUntilNextRecharge.TotalSeconds <= 0 && !IsManagerEnergyFull();
     public TimeSpan TimeUntilNextRecharge
     {
         get
@@ -74,7 +74,7 @@ public class EnergyRecoverySystem
     /// </summary>
     public bool TryRecoverEnergy()
     {
-        if (!IsRecoveryActive || _energyManager.IsEnergyFull)
+        if (!IsRecoveryActive || IsManagerEnergyFull())
         {
             return false;
         }
@@ -88,7 +88,7 @@ public class EnergyRecoverySystem
         int amountToRecover = CalculateRecoveryAmount();
         if (amountToRecover > 0)
         {
-            _energyManager.AddEnergy(amountToRecover);
+            AddEnergyToManager(amountToRecover);
             LastRechargeTime = DateTime.Now;
             _totalRecoveredAmount += amountToRecover;
             _recoveryTickCount++;
@@ -126,12 +126,12 @@ public class EnergyRecoverySystem
             
             for (int i = 0; i < maxRecoveries; i++)
             {
-                if (_energyManager.IsEnergyFull) break;
+                if (IsManagerEnergyFull()) break;
                 
                 int recoveryAmount = CalculateRecoveryAmount();
                 if (recoveryAmount > 0)
                 {
-                    _energyManager.AddEnergy(recoveryAmount);
+                    AddEnergyToManager(recoveryAmount);
                     totalRecoveryAmount += recoveryAmount;
                     _recoveryTickCount++;
                 }
@@ -158,7 +158,7 @@ public class EnergyRecoverySystem
     /// </summary>
     public bool ForceRecharge()
     {
-        if (!IsRecoveryActive || _energyManager.IsEnergyFull)
+        if (!IsRecoveryActive || IsManagerEnergyFull())
         {
             return false;
         }
@@ -166,7 +166,7 @@ public class EnergyRecoverySystem
         int amountToRecover = CalculateRecoveryAmount();
         if (amountToRecover > 0)
         {
-            _energyManager.AddEnergy(amountToRecover);
+            AddEnergyToManager(amountToRecover);
             LastRechargeTime = DateTime.Now;
             _totalRecoveredAmount += amountToRecover;
             _recoveryTickCount++;
@@ -188,10 +188,10 @@ public class EnergyRecoverySystem
     {
         if (!IsRecoveryActive) return;
         
-        int energyDeficit = _energyManager.MaxEnergy - _energyManager.CurrentEnergy;
+        int energyDeficit = GetManagerMaxEnergy() - GetManagerCurrentEnergy();
         if (energyDeficit > 0)
         {
-            _energyManager.AddEnergy(energyDeficit);
+            AddEnergyToManager(energyDeficit);
             LastRechargeTime = DateTime.Now;
             _totalRecoveredAmount += energyDeficit;
             
@@ -240,14 +240,14 @@ public class EnergyRecoverySystem
         int baseAmount = RechargeAmount;
         
         // 최대 에너지를 초과하지 않도록 제한
-        int availableSpace = _energyManager.MaxEnergy - _energyManager.CurrentEnergy;
+        int availableSpace = GetManagerMaxEnergy() - GetManagerCurrentEnergy();
         return Math.Min(baseAmount, availableSpace);
     }
 
     private int GetMaxPossibleRecoveries()
     {
         // 현재 에너지 상태에서 최대 몇 번 회복할 수 있는지 계산
-        int energyDeficit = _energyManager.MaxEnergy - _energyManager.CurrentEnergy;
+        int energyDeficit = GetManagerMaxEnergy() - GetManagerCurrentEnergy();
         return (int)Math.Ceiling((float)energyDeficit / RechargeAmount);
     }
     #endregion
@@ -295,6 +295,65 @@ public class EnergyRecoverySystem
         OnRecoveryTick = null;
         
         Debug.Log("[EnergyRecoverySystem] Cleaned up");
+    }
+    #endregion
+
+    #region Manager Interface Helpers
+    /// <summary>
+    /// 에너지 매니저의 에너지 가득참 상태 확인
+    /// </summary>
+    private bool IsManagerEnergyFull()
+    {
+        // 새로운 Singleton 매니저가 있으면 사용, 없으면 기존 매니저 사용
+        if (EnergyManager.Instance != null)
+        {
+            return EnergyManager.Instance.IsEnergyFull;
+        }
+        
+        // 기존 매니저 사용 (하위 호환성)
+        return _energyManager?.IsEnergyFull ?? false;
+    }
+
+    /// <summary>
+    /// 에너지 매니저에 에너지 추가
+    /// </summary>
+    private void AddEnergyToManager(int amount)
+    {
+        // 새로운 Singleton 매니저가 있으면 사용, 없으면 기존 매니저 사용
+        if (EnergyManager.Instance != null)
+        {
+            EnergyManager.Instance.AddEnergy(amount);
+        }
+        else
+        {
+            _energyManager?.AddEnergy(amount);
+        }
+    }
+
+    /// <summary>
+    /// 에너지 매니저의 현재 에너지 가져오기
+    /// </summary>
+    private int GetManagerCurrentEnergy()
+    {
+        if (EnergyManager.Instance != null)
+        {
+            return EnergyManager.Instance.CurrentEnergy;
+        }
+        
+        return _energyManager?.CurrentEnergy ?? 0;
+    }
+
+    /// <summary>
+    /// 에너지 매니저의 최대 에너지 가져오기
+    /// </summary>
+    private int GetManagerMaxEnergy()
+    {
+        if (EnergyManager.Instance != null)
+        {
+            return EnergyManager.Instance.MaxEnergy;
+        }
+        
+        return _energyManager?.MaxEnergy ?? 100;
     }
     #endregion
 }
