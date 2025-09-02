@@ -1,0 +1,181 @@
+# RoomSection.prefab Structure
+
+This file describes the Unity prefab structure for the RoomSection component.
+In a real Unity project, this would be a .prefab file created in the Unity Editor.
+
+## Hierarchy Structure:
+
+```
+RoomSection (GameObject)
+├── RoomUI (Script: RoomUI.cs)
+│   ├── RoomMainPanel
+│   │   ├── CreateRoomButton (Button)
+│   │   ├── JoinRoomButton (Button)
+│   │   └── LeaveRoomButton (Button, initially inactive)
+│   │
+│   ├── CreateRoomModal
+│   │   ├── Background (Button - for modal close)
+│   │   ├── ModalPanel
+│   │   │   ├── RoomCreateUI (Script: RoomCreateUI.cs)
+│   │   │   ├── HeaderSection
+│   │   │   │   ├── TitleText (Text)
+│   │   │   │   └── CloseButton (Button)
+│   │   │   ├── PlayerCountSection
+│   │   │   │   ├── PlayerCountSlider (Slider)
+│   │   │   │   ├── PlayerCountText (Text)
+│   │   │   │   └── PlayerCountButtons (Button[])
+│   │   │   ├── SettingsSection
+│   │   │   │   ├── PrivateToggle (Toggle)
+│   │   │   │   ├── RoomNameInput (InputField)
+│   │   │   │   └── GameTypeDropdown (Dropdown)
+│   │   │   ├── EnergySection
+│   │   │   │   ├── EnergyCostText (Text)
+│   │   │   │   └── EnergyWarningText (Text)
+│   │   │   └── ActionButtons
+│   │   │       ├── CreateButton (Button)
+│   │   │       └── CancelButton (Button)
+│   │   └── LoadingIndicator (GameObject)
+│   │
+│   ├── JoinRoomModal
+│   │   ├── Background (Button)
+│   │   ├── ModalPanel
+│   │   │   ├── RoomCodeInput (Script: RoomCodeInput.cs)
+│   │   │   ├── HeaderSection
+│   │   │   │   ├── TitleText (Text)
+│   │   │   │   └── CloseButton (Button)
+│   │   │   ├── InputSection
+│   │   │   │   ├── RoomCodeInputField (InputField)
+│   │   │   │   ├── ValidationMessage (Text)
+│   │   │   │   └── PasteButton (Button)
+│   │   │   └── ActionButtons
+│   │   │       ├── JoinButton (Button)
+│   │   │       └── CancelButton (Button)
+│   │   └── LoadingIndicator (GameObject)
+│   │
+│   ├── RoomDisplayPanel
+│   │   ├── RoomInfoSection
+│   │   │   ├── RoomCodeDisplay (Text)
+│   │   │   ├── CopyCodeButton (Button)
+│   │   │   └── RoomStatusText (Text)
+│   │   ├── PlayerListSection
+│   │   │   ├── RoomPlayerList (Script: RoomPlayerList.cs)
+│   │   │   ├── PlayerListHeader
+│   │   │   │   ├── HeaderText (Text)
+│   │   │   │   └── PlayerCountText (Text)
+│   │   │   ├── PlayerListScrollView (ScrollRect)
+│   │   │   │   ├── Viewport
+│   │   │   │   │   └── Content (VerticalLayoutGroup)
+│   │   │   │   └── Scrollbar
+│   │   │   └── EmptyStatePanel (GameObject)
+│   │   │       └── EmptyStateText (Text)
+│   │   └── HostControlsPanel
+│   │       ├── StartGameButton (Button)
+│   │       ├── HostStatusText (Text)
+│   │       └── KickPlayerButton (Button)
+│   │
+│   ├── UIFeedback
+│   │   ├── ErrorMessage (Text)
+│   │   ├── SuccessMessage
+│   │   │   ├── SuccessText (Text)
+│   │   │   └── SuccessIcon (Image)
+│   │   └── LoadingIndicator
+│   │       ├── LoadingSpinner (Image)
+│   │       └── LoadingText (Text)
+│   │
+└── PlayerItemPrefab (Prefab Reference)
+    ├── PlayerItemUI (Script: PlayerItemUI.cs)
+    ├── PlayerInfoSection
+    │   ├── PlayerAvatar (Image)
+    │   ├── PlayerNameText (Text)
+    │   ├── PlayerLevelText (Text)
+    │   └── StatusIndicators
+    │       ├── HostIndicator (GameObject)
+    │       ├── ReadyIndicator (GameObject)
+    │       └── LocalPlayerIndicator (GameObject)
+    └── InteractiveSection
+        ├── PlayerButton (Button)
+        ├── KickButton (Button)
+        └── ReadyToggle (Toggle)
+```
+
+## Component Assignments:
+
+### RoomUI.cs Component Settings:
+- roomMainPanel: RoomMainPanel GameObject
+- createRoomButton: CreateRoomButton
+- joinRoomButton: JoinRoomButton
+- leaveRoomButton: LeaveRoomButton
+- createRoomModal: CreateRoomModal GameObject
+- joinRoomModal: JoinRoomModal GameObject
+- roomDisplayPanel: RoomDisplayPanel GameObject
+- roomCodeText: RoomCodeDisplay Text
+- copyRoomCodeButton: CopyCodeButton
+- roomStatusText: RoomStatusText
+- playerList: RoomPlayerList component
+- hostControlsPanel: HostControlsPanel GameObject
+- startGameButton: StartGameButton
+- loadingIndicator: LoadingIndicator GameObject
+- errorMessageText: ErrorMessage Text
+- successMessage: SuccessMessage GameObject
+- successMessageText: SuccessText
+
+### RoomCreateUI.cs Component Settings:
+- modalPanel: ModalPanel GameObject
+- playerCountSlider: PlayerCountSlider
+- playerCountValueText: PlayerCountText
+- playerCountButtons: Array of PlayerCountButtons
+- privateRoomToggle: PrivateToggle
+- roomNameInputField: RoomNameInput InputField
+- gameTypeDropdown: GameTypeDropdown
+- energyCostText: EnergyCostText
+- energyWarningText: EnergyWarningText
+- createRoomButton: CreateButton
+- cancelButton: CancelButton
+- loadingIndicator: LoadingIndicator GameObject
+
+### RoomCodeInput.cs Component Settings:
+- roomCodeInputField: RoomCodeInputField InputField
+- inputPlaceholder: InputField placeholder Text
+- joinButton: JoinButton
+- cancelButton: CancelButton
+- pasteButton: PasteButton
+- validationMessageText: ValidationMessage Text
+- loadingIndicator: LoadingIndicator GameObject
+
+### RoomPlayerList.cs Component Settings:
+- playerListParent: ScrollView Content Transform
+- playerItemPrefab: PlayerItemPrefab GameObject
+- scrollRect: PlayerListScrollView ScrollRect
+- playerCountText: PlayerCountText
+- listHeaderText: HeaderText
+- emptyStatePanel: EmptyStatePanel GameObject
+- emptyStateText: EmptyStateText
+
+### PlayerItemUI.cs Component Settings:
+- playerNameText: PlayerNameText
+- playerLevelText: PlayerLevelText
+- playerAvatar: PlayerAvatar Image
+- hostIndicator: HostIndicator GameObject
+- readyIndicator: ReadyIndicator GameObject
+- localPlayerIndicator: LocalPlayerIndicator GameObject
+- playerButton: PlayerButton
+- kickButton: KickButton
+- readyToggle: ReadyToggle
+
+## Integration Notes:
+
+1. The RoomSection should be instantiated as a section within the MainPageScreen
+2. RoomUI component subscribes to RoomManager.Instance events in Start()
+3. All sub-components (RoomCreateUI, RoomCodeInput, RoomPlayerList) are initialized by RoomUI
+4. PlayerItemPrefab is used by RoomPlayerList for object pooling
+5. All animations use CanvasGroup components for fade effects
+6. Layout uses Unity's LayoutGroups for responsive design
+7. Touch-friendly button sizes (min 44pt) are enforced through code
+
+## Performance Considerations:
+
+- Object pooling for PlayerItems to avoid frequent instantiation
+- Update throttling (500ms) for real-time player list updates
+- Coroutine-based animations to avoid blocking main thread
+- Lazy initialization of UI components
+- Event-driven updates instead of polling
