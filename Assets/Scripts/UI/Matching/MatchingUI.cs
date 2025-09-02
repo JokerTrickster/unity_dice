@@ -40,7 +40,7 @@ public class MatchingUI : MonoBehaviour
     #region Private Fields
     private MatchingState _currentState = MatchingState.Idle;
     private int _selectedPlayerCount = 2;
-    private MatchType _currentMatchType = MatchType.Random;
+    private UIMatchType _currentMatchType = UIMatchType.Random;
     private Coroutine _stateTransitionCoroutine;
     private bool _isInitialized = false;
     
@@ -51,10 +51,10 @@ public class MatchingUI : MonoBehaviour
     #endregion
     
     #region Events
-    public static event Action<MatchingRequest> OnMatchingRequested;
+    public static event Action<UIMatchingRequest> OnMatchingRequested;
     public static event Action<int> OnPlayerCountChanged;
     public static event Action OnMatchingCancelled;
-    public static event Action<MatchType> OnMatchTypeChanged;
+    public static event Action<UIMatchType> OnMatchTypeChanged;
     #endregion
     
     #region Unity Lifecycle
@@ -173,10 +173,10 @@ public class MatchingUI : MonoBehaviour
     {
         // Button events
         if (randomMatchingButton != null)
-            randomMatchingButton.onClick.AddListener(() => StartMatching(MatchType.Random));
+            randomMatchingButton.onClick.AddListener(() => StartMatching(UIMatchType.Random));
             
         if (roomMatchingButton != null)
-            roomMatchingButton.onClick.AddListener(() => StartMatching(MatchType.Room));
+            roomMatchingButton.onClick.AddListener(() => StartMatching(UIMatchType.Room));
             
         if (cancelMatchingButton != null)
             cancelMatchingButton.onClick.AddListener(CancelMatching);
@@ -322,7 +322,7 @@ public class MatchingUI : MonoBehaviour
     #endregion
     
     #region Matching Operations
-    public void StartMatching(MatchType matchType)
+    public void StartMatching(UIMatchType matchType)
     {
         if (!CanStartMatching())
         {
@@ -338,7 +338,7 @@ public class MatchingUI : MonoBehaviour
             return;
         }
         
-        var request = new MatchingRequest
+        var request = new UIMatchingRequest
         {
             PlayerCount = _selectedPlayerCount,
             MatchType = matchType,
@@ -550,23 +550,25 @@ public class MatchingUI : MonoBehaviour
 
 #region Data Structures
 /// <summary>
-/// 매칭 요청 데이터
+/// UI 매칭 요청 데이터 (내부용)
 /// </summary>
 [Serializable]
-public class MatchingRequest
+public class UIMatchingRequest
 {
     public int PlayerCount;
-    public MatchType MatchType;
+    public UIMatchType MatchType;
     public DateTime RequestTime;
 }
 
 /// <summary>
-/// 매칭 타입
+/// UI 매칭 타입 (내부용)
 /// </summary>
-public enum MatchType
+public enum UIMatchType
 {
-    Random,  // 랜덤 매칭
-    Room     // 방 매칭 (미래 구현)
+    Random,     // 랜덤 매칭
+    Room,       // 방 참가 매칭
+    RoomCreate, // 방 생성 매칭
+    Tournament  // 토너먼트 매칭
 }
 
 /// <summary>
