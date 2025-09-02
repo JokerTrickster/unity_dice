@@ -5,15 +5,19 @@ using System.Collections;
 using System.Collections.Generic;
 
 /// <summary>
-/// 설정 섹션 순수 UI 컴포넌트
+/// 설정 섹션 순수 UI 컴포넌트 (Enhanced for Issue #21)
 /// SettingsSection 비즈니스 로직과 분리된 UI 전용 컴포넌트입니다.
-/// 사용자 입력을 이벤트로 전달하고 UI 업데이트만 담당합니다.
-/// 하단 Footer 영역에 배치되어 빠른 접근을 제공합니다.
+/// QuickSettingsUI와 ActionButtonsUI를 통합하여 완전한 설정 경험을 제공합니다.
+/// SettingsIntegration과 연동하여 실시간 설정 동기화를 지원합니다.
 /// </summary>
 public class SettingsSectionUI : MonoBehaviour
 {
     #region UI References
-    [Header("Quick Actions")]
+    [Header("New UI Components (Issue #21)")]
+    [SerializeField] private QuickSettingsUI quickSettingsUI;
+    [SerializeField] private ActionButtonsUI actionButtonsUI;
+    
+    [Header("Legacy Quick Actions")]
     [SerializeField] private Button settingsButton;
     [SerializeField] private Button logoutButton;
     [SerializeField] private Button helpButton;
@@ -97,6 +101,11 @@ public class SettingsSectionUI : MonoBehaviour
     
     // UI 상태 캐시
     private Dictionary<string, object> _uiStateCache = new Dictionary<string, object>();
+    
+    // Enhanced Integration (Issue #21)
+    private bool _isConnectedToIntegration = false;
+    private bool _quickSettingsConnected = false;
+    private bool _actionButtonsConnected = false;
     #endregion
     
     #region Public Properties
@@ -114,6 +123,26 @@ public class SettingsSectionUI : MonoBehaviour
     /// 대기 중인 알림 수
     /// </summary>
     public int PendingNotificationCount => _notificationQueue.Count;
+    
+    /// <summary>
+    /// QuickSettingsUI 컴포넌트 참조 (Issue #21)
+    /// </summary>
+    public QuickSettingsUI QuickSettingsUI => quickSettingsUI;
+    
+    /// <summary>
+    /// ActionButtonsUI 컴포넌트 참조 (Issue #21)
+    /// </summary>
+    public ActionButtonsUI ActionButtonsUI => actionButtonsUI;
+    
+    /// <summary>
+    /// 모든 새 UI 컴포넌트가 연결되었는지 확인
+    /// </summary>
+    public bool AllNewComponentsConnected => _quickSettingsConnected && _actionButtonsConnected;
+    
+    /// <summary>
+    /// SettingsIntegration 연결 상태
+    /// </summary>
+    public bool IsConnectedToIntegration => _isConnectedToIntegration;
     #endregion
 
     #region Unity Lifecycle
@@ -125,10 +154,14 @@ public class SettingsSectionUI : MonoBehaviour
     private void Start()
     {
         InitializeUI();
+        ConnectToSettingsIntegration();
+        ConnectToNewUIComponents();
     }
 
     private void OnDestroy()
     {
+        DisconnectFromSettingsIntegration();
+        DisconnectFromNewUIComponents();
         UnsubscribeFromUIEvents();
         StopAllCoroutines();
         
@@ -606,6 +639,290 @@ public class SettingsSectionUI : MonoBehaviour
     }
     #endregion
 
+    #region Enhanced Integration Methods (Issue #21)
+    /// <summary>
+    /// SettingsIntegration 연결
+    /// </summary>
+    private void ConnectToSettingsIntegration()
+    {
+        if (SettingsIntegration.Instance != null)
+        {
+            SettingsIntegration.OnSettingChanged += OnIntegrationSettingChanged;
+            SettingsIntegration.OnIntegrationInitialized += OnIntegrationInitialized;
+            _isConnectedToIntegration = true;
+            
+            Debug.Log("[SettingsSectionUI] Connected to SettingsIntegration");
+        }
+        else
+        {
+            Debug.LogWarning("[SettingsSectionUI] SettingsIntegration not available");
+        }
+    }
+    
+    /// <summary>
+    /// SettingsIntegration 연결 해제
+    /// </summary>
+    private void DisconnectFromSettingsIntegration()
+    {
+        if (_isConnectedToIntegration && SettingsIntegration.Instance != null)
+        {
+            SettingsIntegration.OnSettingChanged -= OnIntegrationSettingChanged;
+            SettingsIntegration.OnIntegrationInitialized -= OnIntegrationInitialized;
+        }
+        
+        _isConnectedToIntegration = false;
+    }
+    
+    /// <summary>
+    /// 새 UI 컴포넌트들 연결
+    /// </summary>
+    private void ConnectToNewUIComponents()
+    {
+        // QuickSettingsUI 연결
+        if (quickSettingsUI != null)
+        {
+            QuickSettingsUI.OnQuickSettingsInitialized += OnQuickSettingsInitialized;
+            QuickSettingsUI.OnMusicToggleChanged += OnMusicToggleChangedFromQuick;
+            QuickSettingsUI.OnSoundToggleChanged += OnSoundToggleChangedFromQuick;
+            _quickSettingsConnected = true;
+            
+            Debug.Log("[SettingsSectionUI] Connected to QuickSettingsUI");
+        }
+        else
+        {
+            Debug.LogWarning("[SettingsSectionUI] QuickSettingsUI not assigned");
+        }
+        
+        // ActionButtonsUI 연결
+        if (actionButtonsUI != null)
+        {
+            ActionButtonsUI.OnActionButtonsInitialized += OnActionButtonsInitialized;
+            ActionButtonsUI.OnLogoutButtonClicked += OnLogoutButtonClickedFromAction;
+            ActionButtonsUI.OnTermsButtonClicked += OnTermsButtonClickedFromAction;
+            ActionButtonsUI.OnPrivacyButtonClicked += OnPrivacyButtonClickedFromAction;
+            ActionButtonsUI.OnMailboxButtonClicked += OnMailboxButtonClickedFromAction;
+            _actionButtonsConnected = true;
+            
+            Debug.Log("[SettingsSectionUI] Connected to ActionButtonsUI");
+        }
+        else
+        {
+            Debug.LogWarning("[SettingsSectionUI] ActionButtonsUI not assigned");
+        }
+    }
+    
+    /// <summary>
+    /// 새 UI 컴포넌트들 연결 해제
+    /// </summary>
+    private void DisconnectFromNewUIComponents()
+    {
+        // QuickSettingsUI 연결 해제
+        if (_quickSettingsConnected)
+        {
+            QuickSettingsUI.OnQuickSettingsInitialized -= OnQuickSettingsInitialized;
+            QuickSettingsUI.OnMusicToggleChanged -= OnMusicToggleChangedFromQuick;
+            QuickSettingsUI.OnSoundToggleChanged -= OnSoundToggleChangedFromQuick;
+        }
+        
+        // ActionButtonsUI 연결 해제
+        if (_actionButtonsConnected)
+        {
+            ActionButtonsUI.OnActionButtonsInitialized -= OnActionButtonsInitialized;
+            ActionButtonsUI.OnLogoutButtonClicked -= OnLogoutButtonClickedFromAction;
+            ActionButtonsUI.OnTermsButtonClicked -= OnTermsButtonClickedFromAction;
+            ActionButtonsUI.OnPrivacyButtonClicked -= OnPrivacyButtonClickedFromAction;
+            ActionButtonsUI.OnMailboxButtonClicked -= OnMailboxButtonClickedFromAction;
+        }
+        
+        _quickSettingsConnected = false;
+        _actionButtonsConnected = false;
+    }
+    
+    #region Enhanced Event Handlers
+    /// <summary>
+    /// SettingsIntegration 설정 변경 이벤트
+    /// </summary>
+    private void OnIntegrationSettingChanged(string key, object value)
+    {
+        // 새 UI 컴포넌트들로 변경사항 전파
+        switch (key)
+        {
+            case "MusicEnabled":
+                if (value is bool musicEnabled && quickSettingsUI != null)
+                {
+                    quickSettingsUI.UpdateMusicToggle(musicEnabled, true);
+                }
+                break;
+                
+            case "SoundEnabled":
+                if (value is bool soundEnabled && quickSettingsUI != null)
+                {
+                    quickSettingsUI.UpdateSoundToggle(soundEnabled, true);
+                }
+                break;
+        }
+        
+        Debug.Log($"[SettingsSectionUI] Integration setting changed: {key} = {value}");
+    }
+    
+    /// <summary>
+    /// SettingsIntegration 초기화 완료 이벤트
+    /// </summary>
+    private void OnIntegrationInitialized()
+    {
+        // 초기 설정 동기화
+        if (SettingsIntegration.Instance?.IsInitialized == true)
+        {
+            var currentSettings = SettingsIntegration.Instance.GetCurrentSettings();
+            
+            if (quickSettingsUI != null)
+            {
+                quickSettingsUI.UpdateMusicToggle(currentSettings.MusicEnabled, false);
+                quickSettingsUI.UpdateSoundToggle(currentSettings.SoundEnabled, false);
+            }
+        }
+        
+        Debug.Log("[SettingsSectionUI] SettingsIntegration initialized, settings synchronized");
+    }
+    
+    /// <summary>
+    /// QuickSettingsUI 초기화 완료 이벤트
+    /// </summary>
+    private void OnQuickSettingsInitialized()
+    {
+        Debug.Log("[SettingsSectionUI] QuickSettingsUI initialized");
+    }
+    
+    /// <summary>
+    /// ActionButtonsUI 초기화 완료 이벤트
+    /// </summary>
+    private void OnActionButtonsInitialized()
+    {
+        Debug.Log("[SettingsSectionUI] ActionButtonsUI initialized");
+    }
+    
+    /// <summary>
+    /// QuickSettingsUI에서 음악 토글 변경됨
+    /// </summary>
+    private void OnMusicToggleChangedFromQuick(bool isEnabled)
+    {
+        // 기존 시스템과의 호환성을 위해 이벤트 전파
+        OnToggleSettingChanged?.Invoke("MusicEnabled", isEnabled);
+        
+        Debug.Log($"[SettingsSectionUI] Music toggle from QuickSettingsUI: {isEnabled}");
+    }
+    
+    /// <summary>
+    /// QuickSettingsUI에서 효과음 토글 변경됨
+    /// </summary>
+    private void OnSoundToggleChangedFromQuick(bool isEnabled)
+    {
+        // 기존 시스템과의 호환성을 위해 이벤트 전파
+        OnToggleSettingChanged?.Invoke("SoundEnabled", isEnabled);
+        
+        Debug.Log($"[SettingsSectionUI] Sound toggle from QuickSettingsUI: {isEnabled}");
+    }
+    
+    /// <summary>
+    /// ActionButtonsUI에서 로그아웃 버튼 클릭됨
+    /// </summary>
+    private void OnLogoutButtonClickedFromAction()
+    {
+        // 기존 시스템과의 호환성을 위해 이벤트 전파
+        OnLogoutButtonClicked?.Invoke();
+        
+        Debug.Log("[SettingsSectionUI] Logout button clicked from ActionButtonsUI");
+    }
+    
+    /// <summary>
+    /// ActionButtonsUI에서 약관 버튼 클릭됨
+    /// </summary>
+    private void OnTermsButtonClickedFromAction()
+    {
+        Debug.Log("[SettingsSectionUI] Terms button clicked from ActionButtonsUI");
+    }
+    
+    /// <summary>
+    /// ActionButtonsUI에서 개인정보 처리방침 버튼 클릭됨
+    /// </summary>
+    private void OnPrivacyButtonClickedFromAction()
+    {
+        Debug.Log("[SettingsSectionUI] Privacy button clicked from ActionButtonsUI");
+    }
+    
+    /// <summary>
+    /// ActionButtonsUI에서 우편함 버튼 클릭됨
+    /// </summary>
+    private void OnMailboxButtonClickedFromAction()
+    {
+        // 기존 메일박스 시스템 연동 (Issue #20에서 추가된 기능)
+        Debug.Log("[SettingsSectionUI] Mailbox button clicked from ActionButtonsUI");
+    }
+    #endregion
+    
+    /// <summary>
+    /// 모든 UI 컴포넌트 상호작용 활성화/비활성화
+    /// </summary>
+    public void SetAllComponentsInteractable(bool interactable)
+    {
+        // 새 UI 컴포넌트들
+        if (quickSettingsUI != null)
+        {
+            quickSettingsUI.SetTogglesInteractable(interactable);
+        }
+        
+        if (actionButtonsUI != null)
+        {
+            actionButtonsUI.SetButtonsInteractable(interactable);
+        }
+        
+        // 기존 UI 컴포넌트들
+        if (settingsButton != null)
+            settingsButton.interactable = interactable;
+        if (helpButton != null)
+            helpButton.interactable = interactable;
+        if (notificationButton != null)
+            notificationButton.interactable = interactable;
+            
+        Debug.Log($"[SettingsSectionUI] All components interactable set to {interactable}");
+    }
+    
+    /// <summary>
+    /// 통합된 설정 상태 새로고침
+    /// </summary>
+    public void RefreshAllSettings()
+    {
+        if (quickSettingsUI != null)
+        {
+            quickSettingsUI.RefreshSettings();
+        }
+        
+        if (_isConnectedToIntegration && SettingsIntegration.Instance != null)
+        {
+            SettingsIntegration.Instance.RefreshIntegration();
+        }
+        
+        Debug.Log("[SettingsSectionUI] All settings refreshed");
+    }
+    
+    /// <summary>
+    /// 전체 시스템 상태 반환
+    /// </summary>
+    public EnhancedSettingsSectionState GetEnhancedState()
+    {
+        return new EnhancedSettingsSectionState
+        {
+            IsInitialized = IsInitialized,
+            IsConnectedToIntegration = _isConnectedToIntegration,
+            QuickSettingsConnected = _quickSettingsConnected,
+            ActionButtonsConnected = _actionButtonsConnected,
+            QuickSettingsState = quickSettingsUI?.GetCurrentState(),
+            ActionButtonsState = actionButtonsUI?.GetCurrentState(),
+            LegacyUIState = GetCurrentUIState()
+        };
+    }
+    #endregion
+
     #region Utility Methods
     private void PopulateQualityDropdown()
     {
@@ -695,5 +1012,20 @@ public enum NotificationType
     Error,
     Success,
     Confirmation
+}
+
+/// <summary>
+/// 향상된 설정 섹션 전체 상태 정보 (Issue #21)
+/// </summary>
+[System.Serializable]
+public class EnhancedSettingsSectionState
+{
+    public bool IsInitialized { get; set; }
+    public bool IsConnectedToIntegration { get; set; }
+    public bool QuickSettingsConnected { get; set; }
+    public bool ActionButtonsConnected { get; set; }
+    public QuickSettingsState QuickSettingsState { get; set; }
+    public ActionButtonsState ActionButtonsState { get; set; }
+    public Dictionary<string, object> LegacyUIState { get; set; }
 }
 #endregion
