@@ -1,0 +1,32 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: websocket-config-guid-placeholder, type: 3}
+  m_Name: DefaultWebSocketConfig
+  serverUrl: wss://game-api.unitydice.com/matching
+  connectionTimeout: 10000
+  enableSsl: 1
+  maxReconnectAttempts: 5
+  retryDelays:
+  - 1000
+  - 2000
+  - 5000
+  - 10000
+  - 30000
+  enableAutoReconnect: 1
+  maxMessageQueueSize: 100
+  messageTimeout: 5000
+  maxMessageSize: 1048576
+  enableHeartbeat: 1
+  heartbeatInterval: 30000
+  heartbeatTimeout: 10000
+  enableLogging: 1
+  enableDetailedLogging: 0
